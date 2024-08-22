@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.const import CONF_PASSWORD
 from homeassistant.helpers.typing import ConfigType
+from homeassistant.exceptions import HomeAssistantError
 
 from .const import DOMAIN, CONF_USER_ID
 from .api import PanasonicMirAIeAPI

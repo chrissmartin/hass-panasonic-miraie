@@ -109,7 +109,6 @@ class PanasonicMirAIeAPI:
             return False
 
     async def connect_mqtt(self):
-        """Connect to MQTT broker."""
         if not self.home_id or not self.access_token:
             _LOGGER.error(
                 "Home ID or access token not available. Cannot connect to MQTT."
@@ -117,9 +116,20 @@ class PanasonicMirAIeAPI:
             return False
 
         try:
-            await self.mqtt_handler.connect(self.home_id, self.access_token)
-            _LOGGER.info("Successfully connected to MQTT broker")
-            return True
+            _LOGGER.debug(
+                f"[connect_mqtt] home_id: {self.home_id} , access_token: {self.access_token}"
+            )
+            connected = await self.mqtt_handler.connect_with_retry(
+                self.home_id, self.access_token
+            )
+            if connected:
+                _LOGGER.info("Successfully connected to MQTT broker")
+                return True
+            else:
+                _LOGGER.error(
+                    "Failed to connect to MQTT broker after multiple attempts"
+                )
+                return False
         except Exception as e:
             _LOGGER.error(f"Failed to connect to MQTT broker: {e}")
             return False
