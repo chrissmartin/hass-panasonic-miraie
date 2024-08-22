@@ -16,6 +16,7 @@ from .const import DOMAIN, CONF_USER_ID
 from .api import PanasonicMirAIeAPI
 
 _LOGGER = logging.getLogger(__name__)
+_LOGGER.setLevel(logging.DEBUG)
 
 PLATFORMS: list[str] = ["climate"]
 
@@ -35,21 +36,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     api = PanasonicMirAIeAPI(hass, user_id, password)
 
     try:
-        # Set a timeout for the login and MQTT connection process
-        async with asyncio.timeout(30):  # 30 seconds timeout
-            if not await api.login():
-                raise ConfigEntryNotReady("Failed to login to Panasonic MirAI.e API")
-
-            # Ensure MQTT connection is established
-            if not await api.mqtt_handler.wait_for_connection(timeout=10):
-                raise ConfigEntryNotReady("Failed to establish MQTT connection")
-
-    except asyncio.TimeoutError:
-        _LOGGER.error("Timeout while setting up Panasonic MirAI.e integration")
-        raise ConfigEntryNotReady("Setup timed out")
-    except Exception as ex:
-        _LOGGER.error("Error setting up Panasonic MirAI.e integration: %s", str(ex))
-        raise ConfigEntryNotReady from ex
+        await api.initialize()
+    except HomeAssistantError as e:
+        _LOGGER.error(f"Error setting up Panasonic MirAI.e integration: {e}")
+        raise ConfigEntryNotReady(
+            f"Error setting up Panasonic MirAI.e integration: {e}"
+        )
 
     hass.data[DOMAIN][entry.entry_id] = api
 

@@ -28,15 +28,24 @@ class PanasonicMirAIeAPI:
         self.http_session = async_get_clientsession(hass)
         self.mqtt_handler = MQTTHandler(hass)
 
-    async def login(self):
-        """Login to the MirAIe API and set up MQTT connection."""
+    async def initialize(self):
+        """Initialize the API by logging in, fetching home details, and connecting to MQTT."""
+        if not await self.login():
+            raise HomeAssistantError("Failed to login to Panasonic MirAI.e API")
 
+        if not await self.fetch_home_details():
+            raise HomeAssistantError("Failed to fetch home details")
+
+        if not await self.connect_mqtt():
+            raise HomeAssistantError("Failed to connect to MQTT broker")
+
+    async def login(self):
+        """Login to the MirAIe API."""
         if self.access_token:
             _LOGGER.debug("Already logged in, skipping login process")
             return True
 
         login_url = f"{MIRAIE_AUTH_API_BASE_URL}/userManagement/login"
-
         _LOGGER.debug(f"Attempting to login to {login_url}")
 
         payload = {
@@ -58,18 +67,6 @@ class PanasonicMirAIeAPI:
                         self.access_token = data.get("accessToken")
                         _LOGGER.info("Login successful")
                         _LOGGER.debug(f"Login response: {data}")
-
-                        # Fetch home details to get the home_id
-                        homes = await self.get_home_details()
-                        if homes:
-                            self.home_id = homes[0].get("homeId")
-                            _LOGGER.debug(f"Home ID: {self.home_id}")
-
-                            # Connect to MQTT broker
-                            await self.mqtt_handler.connect(
-                                self.home_id, self.access_token
-                            )
-
                         return True
                     else:
                         _LOGGER.error(
@@ -80,14 +77,61 @@ class PanasonicMirAIeAPI:
             _LOGGER.error(f"Unexpected error during login: {e}")
             return False
 
+    async def fetch_home_details(self):
+        """Fetch the home details registered with the user's MirAIe platform account."""
+        if not self.access_token:
+            _LOGGER.error("No access token available. Please login first.")
+            return False
+
+        homes_url = f"{MIRAIE_APP_API_BASE_URL}/homeManagement/homes"
+        headers = {"Authorization": f"Bearer {self.access_token}"}
+        _LOGGER.debug(f"Home details API: {homes_url} , headers: {headers}")
+
+        try:
+            async with self.http_session.get(homes_url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    _LOGGER.debug(f"Home details response: {data}")
+                    if data:
+                        self.home_id = data[0].get("homeId")
+                        _LOGGER.debug(f"Home ID: {self.home_id}")
+                        return True
+                    else:
+                        _LOGGER.error("No home details found")
+                        return False
+                else:
+                    _LOGGER.error(
+                        f"Failed to fetch home details. Status code: {response.status}"
+                    )
+                    return False
+        except Exception as e:
+            _LOGGER.error(f"Error fetching home details: {e}")
+            return False
+
+    async def connect_mqtt(self):
+        """Connect to MQTT broker."""
+        if not self.home_id or not self.access_token:
+            _LOGGER.error(
+                "Home ID or access token not available. Cannot connect to MQTT."
+            )
+            return False
+
+        try:
+            await self.mqtt_handler.connect(self.home_id, self.access_token)
+            _LOGGER.info("Successfully connected to MQTT broker")
+            return True
+        except Exception as e:
+            _LOGGER.error(f"Failed to connect to MQTT broker: {e}")
+            return False
+
     async def logout(self):
         """Logout and disconnect MQTT."""
         await self.mqtt_handler.disconnect()
         self.access_token = None
         self.home_id = None
 
-    async def get_home_details(self):
-        """Fetch the home details registered with the user's MirAIe platform account."""
+    async def get_devices(self):
+        """Fetch all devices associated with the user's account."""
         if not self.access_token:
             if not await self.login():
                 return []
@@ -98,41 +142,33 @@ class PanasonicMirAIeAPI:
         try:
             async with self.http_session.get(homes_url, headers=headers) as response:
                 if response.status == 200:
-                    data = await response.json()
-                    _LOGGER.debug(f"Home details response: {data}")
-                    return data
+                    homes = await response.json()
+                    devices = []
+                    for home in homes:
+                        for space in home.get("spaces", []):
+                            for device in space.get("devices", []):
+                                devices.append(
+                                    {
+                                        "deviceId": device.get("deviceId"),
+                                        "deviceName": device.get("deviceName"),
+                                        "topic": device.get("topic", []),
+                                        "homeId": home.get("homeId"),
+                                        "homeName": home.get("homeName"),
+                                        "spaceId": space.get("spaceId"),
+                                        "spaceName": space.get("spaceName"),
+                                        "spaceType": space.get("spaceType"),
+                                    }
+                                )
+                    _LOGGER.debug(f"Retrieved {len(devices)} devices")
+                    return devices
                 else:
                     _LOGGER.error(
-                        f"Failed to fetch home details. Status code: {response.status}"
+                        f"Failed to fetch devices. Status code: {response.status}"
                     )
                     return []
         except Exception as e:
-            _LOGGER.error(f"Error fetching home details: {e}")
+            _LOGGER.error(f"Error fetching devices: {e}")
             return []
-
-    async def get_devices(self):
-        """Fetch all devices associated with the user's account."""
-        homes = await self.get_home_details()
-        devices = []
-
-        for home in homes:
-            for space in home.get("spaces", []):
-                for device in space.get("devices", []):
-                    devices.append(
-                        {
-                            "deviceId": device.get("deviceId"),
-                            "deviceName": device.get("deviceName"),
-                            "topic": device.get("topic", []),
-                            "homeId": home.get("homeId"),
-                            "homeName": home.get("homeName"),
-                            "spaceId": space.get("spaceId"),
-                            "spaceName": space.get("spaceName"),
-                            "spaceType": space.get("spaceType"),
-                        }
-                    )
-
-        _LOGGER.debug(f"Retrieved {len(devices)} devices")
-        return devices
 
     async def get_device_state(self, device_id: str) -> Dict[str, Any]:
         """Fetch the current state of a device."""

@@ -34,7 +34,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
 
     # Fetch home details to further validate the connection
     try:
-        homes = await api.get_home_details()
+        homes = await api.fetch_home_details()
         if not homes:
             raise CannotConnect
     except Exception as err:

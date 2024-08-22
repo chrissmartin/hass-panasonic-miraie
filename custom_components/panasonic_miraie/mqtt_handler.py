@@ -1,9 +1,8 @@
-import json
-import logging
 import asyncio
-import socket
+import logging
+from homeassistant.util import json
 from typing import Callable, Any
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 import paho.mqtt.client as mqtt
 
 from .const import MIRAIE_BROKER_HOST, MIRAIE_BROKER_PORT, MIRAIE_BROKER_USE_SSL
@@ -17,11 +16,6 @@ class MQTTHandler:
         self.client = None
         self.connected = asyncio.Event()
         self.subscriptions = {}
-        self.connect_future = None
-        self.reconnect_interval = 5
-        self.max_reconnect_interval = 300
-        self.reconnect_count = 0
-        self.max_reconnect_attempts = 10
         self.username = None
         self.password = None
 
@@ -29,86 +23,87 @@ class MQTTHandler:
         """Connect to the MQTT broker."""
         self.username = username
         self.password = password
-        self.client = mqtt.Client(
-            "PBcMcfG19njNCL8AOgvRzIC8AjQa", clean_session=True, protocol=mqtt.MQTTv311
+
+        _LOGGER.info(
+            f"Initiating MQTT connection to {MIRAIE_BROKER_HOST}:{MIRAIE_BROKER_PORT}"
         )
+
+        self.client = mqtt.Client("PBcMcfG19njNCL8AOgvRzIC8AjQa", protocol=mqtt.MQTTv5)
         self.client.username_pw_set(username, password)
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
         self.client.on_message = self._on_message
 
-        # Set a longer keep-alive interval and disable automatic reconnect
         self.client.keepalive = 60
-        self.client.reconnect_delay_set(min_delay=1, max_delay=120)
 
         if MIRAIE_BROKER_USE_SSL:
+            _LOGGER.debug("Configuring TLS for MQTT connection")
             self.client.tls_set()
 
-        self.connect_future = asyncio.Future()
-
         try:
-            _LOGGER.debug(f"Resolving hostname {MIRAIE_BROKER_HOST}")
-            ip_address = socket.gethostbyname(MIRAIE_BROKER_HOST)
-            _LOGGER.debug(f"Resolved {MIRAIE_BROKER_HOST} to {ip_address}")
-
-            _LOGGER.debug(
-                f"Attempting to connect with username: {username}, password: {password[:5]}..."
-            )
-            self.client.connect_async(MIRAIE_BROKER_HOST, MIRAIE_BROKER_PORT)
-            self.client.loop_start()
-
-            # Wait for the connection to be established
-            await asyncio.wait_for(self.connect_future, timeout=10.0)
-            _LOGGER.info("Connected to Panasonic MirAIe MQTT broker")
-            self.reconnect_count = 0
+            async with asyncio.timeout(30):  # 30 seconds timeout
+                _LOGGER.debug("Attempting to connect to MQTT broker")
+                await self.hass.async_add_executor_job(
+                    self.client.connect, MIRAIE_BROKER_HOST, MIRAIE_BROKER_PORT
+                )
+                self.client.loop_start()
+                _LOGGER.debug("Waiting for MQTT connection to be established")
+                await asyncio.wait_for(self.connected.wait(), timeout=30.0)
+                _LOGGER.info("Connected to Panasonic MirAIe MQTT broker")
         except asyncio.TimeoutError:
             _LOGGER.error("Timeout while connecting to MQTT broker")
             await self.disconnect()
+            raise
         except Exception as error:
             _LOGGER.error(f"Error connecting to MQTT broker: {error}")
             await self.disconnect()
+            raise
 
     async def disconnect(self):
         """Disconnect from the MQTT broker."""
+        _LOGGER.info("Initiating disconnect from MQTT broker")
         if self.client:
             self.client.loop_stop()
-            self.client.disconnect()
+            await self.hass.async_add_executor_job(self.client.disconnect)
             self.client = None
         self.connected.clear()
         _LOGGER.info("Disconnected from Panasonic MirAIe MQTT broker")
 
     async def subscribe(self, topic: str, callback: Callable[[str, Any], None]):
         """Subscribe to an MQTT topic."""
+        _LOGGER.debug(f"Attempting to subscribe to topic: {topic}")
         await self.connected.wait()
         self.subscriptions[topic] = callback
-        result, _ = self.client.subscribe(topic)
+        result, _ = await self.hass.async_add_executor_job(self.client.subscribe, topic)
         if result == mqtt.MQTT_ERR_SUCCESS:
-            _LOGGER.debug(f"Subscribed to topic: {topic}")
+            _LOGGER.debug(f"Successfully subscribed to topic: {topic}")
         else:
             _LOGGER.error(f"Failed to subscribe to topic: {topic}")
 
     async def unsubscribe(self, topic: str):
         """Unsubscribe from an MQTT topic."""
+        _LOGGER.debug(f"Attempting to unsubscribe from topic: {topic}")
         await self.connected.wait()
-        result, _ = self.client.unsubscribe(topic)
+        result, _ = await self.hass.async_add_executor_job(
+            self.client.unsubscribe, topic
+        )
         if result == mqtt.MQTT_ERR_SUCCESS:
             self.subscriptions.pop(topic, None)
-            _LOGGER.debug(f"Unsubscribed from topic: {topic}")
+            _LOGGER.debug(f"Successfully unsubscribed from topic: {topic}")
         else:
             _LOGGER.error(f"Failed to unsubscribe from topic: {topic}")
 
     async def publish(self, topic: str, payload: dict):
         """Publish a message to a topic."""
         if not self.is_connected():
-            _LOGGER.warning("Cannot publish: MQTT client is not connected")
-            await self.reconnect()
-            if not self.is_connected():
-                _LOGGER.error("Failed to reconnect. Cannot publish message.")
-                return
+            _LOGGER.error("Cannot publish: MQTT client is not connected")
+            return
 
         try:
             _LOGGER.debug(f"Attempting to publish to {topic}: {payload}")
-            message_info = self.client.publish(topic, json.dumps(payload))
+            message_info = await self.hass.async_add_executor_job(
+                self.client.publish, topic, json.dumps(payload)
+            )
             if message_info.is_published():
                 _LOGGER.debug(f"Successfully published to {topic}: {payload}")
             else:
@@ -116,124 +111,83 @@ class MQTTHandler:
         except Exception as e:
             _LOGGER.error(f"Error publishing to {topic}: {e}")
 
-    def _on_connect(self, client, userdata, flags, rc):
+    @callback
+    def _on_connect(self, client, userdata, flags, rc, properties=None):
         """Callback for when the client receives a CONNACK response from the server."""
         if rc == 0:
-            self.connected.set()
-            if not self.connect_future.done():
-                self.connect_future.set_result(True)
+            self.hass.loop.call_soon_threadsafe(self.connected.set)
             _LOGGER.info("Successfully connected to MQTT broker")
-            self.reconnect_interval = 5
-            self.reconnect_count = 0
+            _LOGGER.debug(f"Connection flags: {flags}")
+            if properties:
+                _LOGGER.debug(f"Connection properties: {properties}")
         else:
-            error_message = f"Connection failed with code {rc}: "
-            if rc == 1:
-                error_message += "Incorrect protocol version"
-            elif rc == 2:
-                error_message += "Invalid client identifier"
-            elif rc == 3:
-                error_message += "Server unavailable"
-            elif rc == 4:
-                error_message += "Bad username or password"
-            elif rc == 5:
-                error_message += "Not authorised"
-            else:
-                error_message += "Unknown error"
-
+            error_message = f"Connection failed with code {rc}: {self._rc_to_error(rc)}"
             _LOGGER.error(error_message)
-            _LOGGER.debug(
-                f"Connection attempt details - Host: {MIRAIE_BROKER_HOST}, Port: {MIRAIE_BROKER_PORT}, SSL: {MIRAIE_BROKER_USE_SSL}"
-            )
+            if properties:
+                _LOGGER.debug(f"Failed connection properties: {properties}")
 
-            if not self.connect_future.done():
-                self.connect_future.set_exception(Exception(error_message))
-
-    def _on_disconnect(self, client, userdata, rc):
+    @callback
+    def _on_disconnect(self, client, userdata, rc, properties=None):
         """Callback for when the client disconnects from the server."""
-        self.connected.clear()
-        if rc == 0:
-            _LOGGER.info("Disconnected from MQTT broker")
+        self.hass.loop.call_soon_threadsafe(self.connected.clear)
+        if rc != 0:
+            _LOGGER.warning(
+                f"Unexpected disconnection. RC: {rc}. {self._rc_to_error(rc)}"
+            )
+            if properties:
+                _LOGGER.debug(f"Disconnection properties: {properties}")
         else:
-            error_message = f"Unexpected disconnection. RC: {rc}. "
-            if rc == 1:
-                error_message += "Unacceptable protocol version"
-            elif rc == 2:
-                error_message += "Identifier rejected"
-            elif rc == 3:
-                error_message += "Server unavailable"
-            elif rc == 4:
-                error_message += "Bad user name or password"
-            elif rc == 5:
-                error_message += "Not authorized"
-            elif rc == 7:
-                error_message += "Network error"
-            else:
-                error_message += "Unknown error"
+            _LOGGER.info("Disconnected from MQTT broker (expected)")
 
-            _LOGGER.warning(error_message)
-            _LOGGER.debug("Attempting to reconnect...")
-
-        # Attempt to reconnect
-        self.hass.loop.call_soon_threadsafe(self.reconnect())
-
-    def _schedule_reconnect(self):
-        """Schedule the reconnection task on the event loop."""
-        if self._reconnect_task is None or self._reconnect_task.done():
-            self._reconnect_task = self.hass.loop.create_task(self._reconnect())
-
+    @callback
     def _on_message(self, client, userdata, message):
         """Callback for when a PUBLISH message is received from the server."""
+        _LOGGER.debug(f"Received message on topic {message.topic}")
         try:
-            payload_dict = json.loads(message.payload.decode())
+            payload_dict = json.json_loads(message.payload.decode())
             if message.topic in self.subscriptions:
                 callback = self.subscriptions[message.topic]
-                asyncio.run_coroutine_threadsafe(
-                    callback(message.topic, payload_dict), self.hass.loop
+                self.hass.async_create_task(callback(message.topic, payload_dict))
+            else:
+                _LOGGER.warning(
+                    f"Received message on unsubscribed topic: {message.topic}"
                 )
         except json.JSONDecodeError:
             _LOGGER.error(f"Failed to decode MQTT message: {message.payload}")
         except Exception as e:
             _LOGGER.error(f"Error handling MQTT message: {e}")
 
+    def is_connected(self):
+        """Check if the MQTT client is connected."""
+        is_connected = (
+            self.client and self.client.is_connected() and self.connected.is_set()
+        )
+        _LOGGER.debug(
+            f"MQTT connection status: {'Connected' if is_connected else 'Disconnected'}"
+        )
+        return is_connected
+
     async def wait_for_connection(self, timeout=10):
         """Wait for the MQTT connection to be established."""
+        _LOGGER.debug(f"Waiting for MQTT connection (timeout: {timeout} seconds)")
         try:
             await asyncio.wait_for(self.connected.wait(), timeout=timeout)
+            _LOGGER.info("MQTT connection established")
         except asyncio.TimeoutError:
             _LOGGER.error(
                 f"Timeout waiting for MQTT connection after {timeout} seconds"
             )
             raise
 
-    async def reconnect(self):
-        """Reconnect to the MQTT broker with exponential backoff."""
-        while (
-            not self.is_connected()
-            and self.reconnect_count < self.max_reconnect_attempts
-        ):
-            self.reconnect_count += 1
-            try:
-                _LOGGER.info(
-                    f"Attempting to reconnect in {self.reconnect_interval} seconds (attempt {self.reconnect_count}/{self.max_reconnect_attempts})..."
-                )
-                await asyncio.sleep(self.reconnect_interval)
-                await self.connect(self.username, self.password)
-                if self.is_connected():
-                    _LOGGER.info("Successfully reconnected to MQTT broker")
-                    return
-            except Exception as e:
-                _LOGGER.error(f"Reconnection attempt failed: {e}")
-
-            # Increase reconnect interval with exponential backoff
-            self.reconnect_interval = min(
-                self.reconnect_interval * 2, self.max_reconnect_interval
-            )
-
-        if self.reconnect_count >= self.max_reconnect_attempts:
-            _LOGGER.error(
-                "Max reconnection attempts reached. Please check your network connection and MQTT broker status."
-            )
-
-    def is_connected(self):
-        """Check if the MQTT client is connected."""
-        return self.client and self.client.is_connected() and self.connected.is_set()
+    @staticmethod
+    def _rc_to_error(rc: int) -> str:
+        """Convert RC code to human-readable error message."""
+        rc_messages = {
+            1: "Incorrect protocol version",
+            2: "Invalid client identifier",
+            3: "Server unavailable",
+            4: "Bad username or password",
+            5: "Not authorized",
+            7: "Network error",
+        }
+        return rc_messages.get(rc, "Unknown error")
