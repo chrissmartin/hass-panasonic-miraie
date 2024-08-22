@@ -1,0 +1,7 @@
+{
+  "name": "Panasonic MirAI.e",
+  "render_readme": true,
+  "domains": ["climate"],
+  "homeassistant": "2024.1.0",
+  "iot_class": "cloud_push"
+}
