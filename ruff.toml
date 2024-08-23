@@ -1,0 +1,84 @@
+# Ruff configuration aligned with Home Assistant development guidelines
+# https://developers.home-assistant.io/docs/development_guidelines
+
+target-version = "py311" # Home Assistant requires Python 3.11+
+
+lint.select = [
+    "B007",    # Loop control variable not used within loop body
+    "B014",    # Exception handler with duplicate exception
+    "C",       # complexity
+    "D",       # docstrings
+    "E",       # pycodestyle errors
+    "F",       # pyflakes
+    "I",       # isort
+    "ICN001",  # import concentions; import-full-path
+    "PGH004",  # Use specific rule codes when using noqa
+    "PLC0414", # Useless import alias
+    "SIM",     # flake8-simplify
+    "T20",     # flake8-print
+    "UP",      # pyupgrade
+    "W",       # pycodestyle warnings
+    "YTT",     # flake8-2020
+]
+
+lint.ignore = [
+    "D202",   # No blank lines allowed after function docstring
+    "D203",   # 1 blank line required before class docstring
+    "D212",   # Multi-line docstring summary should start at the first line
+    "D213",   # Multi-line docstring summary should start at the second line
+    "D406",   # Section name should end with a newline
+    "D407",   # Missing dashed underline after section
+    "E501",   # Line too long
+    "PGH003", # Use specific rule codes when ignoring type issues
+]
+
+# Allow autofix behavior for specified rules
+lint.fixable = ["B007", "B014", "I", "SIM", "UP"]
+lint.unfixable = []
+
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+]
+
+# Same as Black.
+line-length = 88
+
+# Allow unused variables when underscore-prefixed.
+lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[lint.per-file-ignores]
+"tests/*" = ["D"] # Ignore docstring rules in tests
+
+[lint.mccabe]
+# Unlike Flake8, default to a complexity level of 10.
+max-complexity = 10
+
+[lint.isort]
+force-sort-within-sections = true
+known-first-party = ["homeassistant"]
+combine-as-imports = true
+
+[lint.pyupgrade]
+# Preserve types, even if a file imports `from __future__ import annotations`.
+keep-runtime-typing = true

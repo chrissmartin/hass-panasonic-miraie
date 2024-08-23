@@ -12,8 +12,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 
-from .const import DOMAIN, CONF_USER_ID, CONF_PASSWORD
 from .api import PanasonicMirAIeAPI
+from .const import CONF_PASSWORD, CONF_USER_ID, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 

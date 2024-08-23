@@ -1,0 +1,36 @@
+[project]
+name = "panasonic_miraie"
+version = "0.1.5"
+description = "Home Assistant integration for Panasonic MirAI.e air conditioners"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Chriss Martin", email = "thechrissmartin@gmail.com" }]
+dependencies = [
+    "asyncio-mqtt==0.16.2",
+    "async_timeout>=4.0.3",
+    "voluptuous>=0.15.2",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/chrissmartin/hass-panasonic-miraie"
+"Bug Tracker" = "https://github.com/chrissmartin/hass-panasonic-miraie/issues"
+
+[tool.coverage.run]
+source = ["custom_components.panasonic_miraie"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "pass",
+    "Exception",
+    "asyncio\\.run\\(",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

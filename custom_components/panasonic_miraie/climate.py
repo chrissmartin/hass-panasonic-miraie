@@ -8,24 +8,24 @@ from typing import Any
 
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (
-    ClimateEntityFeature,
-    HVACMode,
     FAN_AUTO,
+    FAN_DIFFUSE,
+    FAN_HIGH,
     FAN_LOW,
     FAN_MEDIUM,
-    FAN_HIGH,
-    FAN_DIFFUSE,
-    SWING_ON,
-    SWING_OFF,
-    SWING_VERTICAL,
-    SWING_HORIZONTAL,
     SWING_BOTH,
+    SWING_HORIZONTAL,
+    SWING_OFF,
+    SWING_ON,
+    SWING_VERTICAL,
+    ClimateEntityFeature,
+    HVACMode,
 )
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
-from homeassistant.config_entries import ConfigEntry
 
 from .const import DOMAIN
 
@@ -62,10 +62,20 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the Panasonic MirAI.e climate platform."""
+    """Set up the Panasonic MirAI.e climate platform.
+
+    Args:
+        hass: The Home Assistant instance.
+        config_entry: The config entry.
+        async_add_entities: Callback to add new entities.
+
+    Returns:
+        None
+
+    """
     api = hass.data[DOMAIN][config_entry.entry_id]
     devices = await api.get_devices()
-    _LOGGER.debug(f"Retrieved devices: {devices}")
+    _LOGGER.debug("Retrieved devices: %s", devices)
 
     entities = [
         PanasonicMirAIeClimate(
@@ -77,7 +87,7 @@ async def async_setup_entry(
         for device in devices
     ]
 
-    _LOGGER.info(f"Adding {len(entities)} Panasonic MirAI.e climate entities")
+    _LOGGER.info("Adding %d Panasonic MirAI.e climate entities", len(entities))
     async_add_entities(entities)
 
 
@@ -93,7 +103,15 @@ class PanasonicMirAIeClimate(ClimateEntity):
     _attr_swing_modes = list(SWING_MODE_MAP.keys())
 
     def __init__(self, api, device_topic, device_name, device_id):
-        """Initialize the climate device."""
+        """Initialize the climate device.
+
+        Args:
+            api: The API instance for communicating with the device.
+            device_topic: The MQTT topic for the device.
+            device_name: The name of the device.
+            device_id: The unique identifier of the device.
+
+        """
         self._api = api
         self._device_topic = device_topic
         self._device_id = device_id
@@ -108,13 +126,20 @@ class PanasonicMirAIeClimate(ClimateEntity):
         )
 
         _LOGGER.debug(
-            f"Initialized climate entity: {self._attr_name} with topic {self._device_topic}"
+            "Initialized climate entity: %s with topic %s",
+            self._attr_name,
+            self._device_topic,
         )
 
     async def async_added_to_hass(self) -> None:
-        """Run when entity about to be added."""
+        """Run when entity about to be added to hass.
+
+        Returns:
+            None
+
+        """
         await super().async_added_to_hass()
-        _LOGGER.debug(f"Entity {self._attr_name} added to HASS")
+        _LOGGER.debug("Entity %s added to HASS", self._attr_name)
 
         try:
             await self._api.mqtt_handler.subscribe(
@@ -122,7 +147,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
             )
             await self.async_update()
         except Exception as e:
-            _LOGGER.error(f"Error setting up entity {self._attr_name}: {e}")
+            _LOGGER.error("Error setting up entity %s: %s", self._attr_name, e)
             self._attr_available = False
 
         self.async_on_remove(
@@ -132,27 +157,46 @@ class PanasonicMirAIeClimate(ClimateEntity):
         )
 
     async def async_will_remove_from_hass(self) -> None:
-        """Run when entity will be removed from hass."""
+        """Run when entity will be removed from hass.
+
+        Returns:
+            None
+
+        """
         await super().async_will_remove_from_hass()
         try:
             await self._api.mqtt_handler.unsubscribe(f"{self._device_topic}/state")
         except Exception as e:
-            _LOGGER.error(f"Error unsubscribing {self._attr_name}: {e}")
+            _LOGGER.error("Error unsubscribing %s: %s", self._attr_name, e)
 
     async def async_update(self) -> None:
-        """Fetch new state data for this entity."""
+        """Fetch new state data for this entity.
+
+        Returns:
+            None
+
+        """
         try:
             state = await self._api.get_device_state(self._device_id)
             await self._handle_state_update(self._device_topic, state)
         except Exception as e:
-            _LOGGER.error(f"Error updating {self._attr_name}: {e}")
+            _LOGGER.error("Error updating %s: %s", self._attr_name, e)
             self._attr_available = False
             self.async_write_ha_state()
 
     async def _handle_state_update(self, topic: str, payload: dict[str, Any]) -> None:
-        """Handle state updates from the API."""
+        """Handle state updates from the API.
+
+        Args:
+            topic: The MQTT topic of the update.
+            payload: The state payload.
+
+        Returns:
+            None
+
+        """
         if not payload:
-            _LOGGER.warning(f"Received empty payload for {self._attr_name}")
+            _LOGGER.warning("Received empty payload for %s", self._attr_name)
             return
 
         try:
@@ -192,26 +236,51 @@ class PanasonicMirAIeClimate(ClimateEntity):
             }
 
             _LOGGER.debug(
-                f"Updated state for {self._attr_name}: HVAC Mode - {self._attr_hvac_mode}, Fan Mode - {self._attr_fan_mode}, Swing Mode - {self._attr_swing_mode}, Temperature - {self._attr_target_temperature}"
+                "Updated state for %s: HVAC Mode - %s, Fan Mode - %s, Swing Mode - %s, Temperature - %s",
+                self._attr_name,
+                self._attr_hvac_mode,
+                self._attr_fan_mode,
+                self._attr_swing_mode,
+                self._attr_target_temperature,
             )
             self.async_write_ha_state()
         except Exception as e:
-            _LOGGER.error(f"Error handling state update for {self._attr_name}: {e}")
+            _LOGGER.error("Error handling state update for %s: %s", self._attr_name, e)
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
-        """Set new target temperature."""
+        """Set new target temperature.
+
+        Args:
+            **kwargs: Keyword arguments containing the new temperature.
+
+        Returns:
+            None
+
+        """
         temperature = kwargs.get(ATTR_TEMPERATURE)
         if temperature is not None:
-            _LOGGER.debug(f"Setting temperature for {self._attr_name} to {temperature}")
+            _LOGGER.debug(
+                "Setting temperature for %s to %s", self._attr_name, temperature
+            )
             try:
                 await self._api.set_temperature(self._device_topic, temperature)
                 await self.async_update()
             except Exception as e:
-                _LOGGER.error(f"Error setting temperature for {self._attr_name}: {e}")
+                _LOGGER.error(
+                    "Error setting temperature for %s: %s", self._attr_name, e
+                )
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
-        """Set new target hvac mode."""
-        _LOGGER.debug(f"Setting HVAC mode for {self._attr_name} to {hvac_mode}")
+        """Set new target hvac mode.
+
+        Args:
+            hvac_mode: The new HVAC mode to set.
+
+        Returns:
+            None
+
+        """
+        _LOGGER.debug("Setting HVAC mode for %s to %s", self._attr_name, hvac_mode)
         try:
             if hvac_mode == HVACMode.OFF:
                 await self._api.set_power(self._device_topic, "off")
@@ -225,11 +294,19 @@ class PanasonicMirAIeClimate(ClimateEntity):
 
             await self.async_update()
         except Exception as e:
-            _LOGGER.error(f"Error setting HVAC mode for {self._attr_name}: {e}")
+            _LOGGER.error("Error setting HVAC mode for %s: %s", self._attr_name, e)
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
-        """Set new target fan mode."""
-        _LOGGER.debug(f"Setting fan mode for {self._attr_name} to {fan_mode}")
+        """Set new target fan mode.
+
+        Args:
+            fan_mode: The new fan mode to set.
+
+        Returns:
+            None
+
+        """
+        _LOGGER.debug("Setting fan mode for %s to %s", self._attr_name, fan_mode)
         try:
             miraie_fan_mode = next(
                 (k for k, v in FAN_MODE_MAP.items() if v == fan_mode), None
@@ -238,22 +315,35 @@ class PanasonicMirAIeClimate(ClimateEntity):
                 await self._api.set_fan_mode(self._device_topic, miraie_fan_mode)
             await self.async_update()
         except Exception as e:
-            _LOGGER.error(f"Error setting fan mode for {self._attr_name}: {e}")
+            _LOGGER.error("Error setting fan mode for %s: %s", self._attr_name, e)
 
     async def async_set_swing_mode(self, swing_mode: str) -> None:
-        """Set new target swing operation."""
-        _LOGGER.debug(f"Setting swing mode for {self._attr_name} to {swing_mode}")
+        """Set new target swing operation.
+
+        Args:
+            swing_mode: The new swing mode to set.
+
+        Returns:
+            None
+
+        """
+        _LOGGER.debug("Setting swing mode for %s to %s", self._attr_name, swing_mode)
         try:
             miraie_swing_mode = SWING_MODE_MAP.get(swing_mode)
             if miraie_swing_mode:
                 await self._api.set_swing_mode(self._device_topic, miraie_swing_mode)
             await self.async_update()
         except Exception as e:
-            _LOGGER.error(f"Error setting swing mode for {self._attr_name}: {e}")
+            _LOGGER.error("Error setting swing mode for %s: %s", self._attr_name, e)
 
     @property
     def device_info(self):
-        """Return device information."""
+        """Return device information.
+
+        Returns:
+            dict: A dictionary containing device information.
+
+        """
         return {
             "identifiers": {(DOMAIN, self._device_id)},
             "name": self._attr_name,
