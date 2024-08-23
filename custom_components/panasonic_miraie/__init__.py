@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import random
-import asyncio
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -12,6 +11,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.const import CONF_PASSWORD
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN, CONF_USER_ID
 from .api import PanasonicMirAIeAPI
@@ -21,11 +21,12 @@ _LOGGER.setLevel(logging.DEBUG)
 
 PLATFORMS: list[str] = ["climate"]
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Panasonic MirAI.e component."""
     hass.data.setdefault(DOMAIN, {})
-    hass.data["miraie_scope_id"] = random.randint(0, 999999999)
     return True
 
 

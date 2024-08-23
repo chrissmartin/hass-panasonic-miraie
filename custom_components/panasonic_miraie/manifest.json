@@ -1,16 +1,15 @@
 {
   "domain": "panasonic_miraie",
   "name": "Panasonic MirAI.e",
-  "documentation": "https://github.com/chrissmartin/hass-panasonic-miraie",
   "codeowners": ["@chrissmartin"],
+  "config_flow": true,
+  "documentation": "https://github.com/chrissmartin/hass-panasonic-miraie",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/chrissmartin/hass-panasonic-miraie/issues",
   "requirements": [
     "asyncio-mqtt==0.16.2",
     "async_timeout>=4.0.3",
     "voluptuous>=0.15.2"
   ],
-  "iot_class": "cloud_push",
-  "version": "0.1.5",
-  "config_flow": true,
-  "issue_tracker": "https://github.com/chrissmartin/hass-panasonic-miraie/issues",
-  "icon": "/custom_components/panasonic_miraie/icons/panasonic_miraie.png"
+  "version": "0.1.5"
 }
