@@ -1,4 +1,4 @@
-"""Config flow for Panasonic MirAI.e integration."""
+"""Config flow for Panasonic MirAIe integration."""
 
 from __future__ import annotations
 
@@ -42,11 +42,11 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
         raise CannotConnect
 
     # Return info that you want to store in the config entry.
-    return {"title": f"Panasonic MirAI.e ({data[CONF_USER_ID]})"}
+    return {"title": f"Panasonic MirAIe ({data[CONF_USER_ID]})"}
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Panasonic MirAI.e."""
+    """Handle a config flow for Panasonic MirAIe."""
 
     VERSION = 1
 

@@ -1,4 +1,4 @@
-"""Support for Panasonic MirAI.e AC climate devices."""
+"""Support for Panasonic MirAIe AC climate devices."""
 
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the Panasonic MirAI.e climate platform.
+    """Set up the Panasonic MirAIe climate platform.
 
     Args:
         hass: The Home Assistant instance.
@@ -87,12 +87,12 @@ async def async_setup_entry(
         for device in devices
     ]
 
-    _LOGGER.info("Adding %d Panasonic MirAI.e climate entities", len(entities))
+    _LOGGER.info("Adding %d Panasonic MirAIe climate entities", len(entities))
     async_add_entities(entities)
 
 
 class PanasonicMirAIeClimate(ClimateEntity):
-    """Representation of a Panasonic MirAI.e climate device."""
+    """Representation of a Panasonic MirAIe climate device."""
 
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_target_temperature_step = 0.5

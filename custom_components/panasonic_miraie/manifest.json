@@ -1,6 +1,6 @@
 {
   "domain": "panasonic_miraie",
-  "name": "Panasonic MirAI.e",
+  "name": "Panasonic MirAIe",
   "codeowners": ["@chrissmartin"],
   "config_flow": true,
   "documentation": "https://github.com/chrissmartin/hass-panasonic-miraie",
