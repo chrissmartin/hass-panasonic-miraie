@@ -1,9 +1,9 @@
 {
-  "documentation": "https://github.com/chrissmartin/hass-panasonic-miraie",
+  "domain": "panasonic_miraie",
   "name": "Panasonic MirAI.e",
   "codeowners": ["@chrissmartin"],
   "config_flow": true,
-  "domain": "panasonic_miraie",
+  "documentation": "https://github.com/chrissmartin/hass-panasonic-miraie",
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/chrissmartin/hass-panasonic-miraie/issues",
   "requirements": [
