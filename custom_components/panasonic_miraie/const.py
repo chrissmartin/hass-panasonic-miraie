@@ -1,4 +1,4 @@
-"""Constants for the Panasonic MirAI.e integration."""
+"""Constants for the Panasonic MirAIe integration."""
 
 DOMAIN = "panasonic_miraie"
 

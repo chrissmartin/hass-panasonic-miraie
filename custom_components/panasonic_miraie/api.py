@@ -41,7 +41,7 @@ class PanasonicMirAIeAPI:
     async def initialize(self):
         """Initialize the API by logging in, fetching home details, and connecting to MQTT."""
         if not await self.login():
-            raise HomeAssistantError("Failed to login to Panasonic MirAI.e API")
+            raise HomeAssistantError("Failed to login to Panasonic MirAIe API")
 
         if not await self.fetch_home_details():
             raise HomeAssistantError("Failed to fetch home details")
@@ -237,7 +237,7 @@ class PanasonicMirAIeAPI:
 
         """
         if not self.access_token and not await self.login():
-            raise HomeAssistantError("Failed to login to Panasonic MirAI.e API")
+            raise HomeAssistantError("Failed to login to Panasonic MirAIe API")
 
         url = f"{MIRAIE_APP_API_BASE_URL}/deviceManagement/devices/{device_id}/mobile/status"
         headers = {

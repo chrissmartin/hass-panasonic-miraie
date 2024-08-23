@@ -1,10 +1,10 @@
-# Panasonic MirAI.e Integration for Home Assistant
+# Panasonic MirAIe Integration for Home Assistant
 
-This integration allows you to control your Panasonic MirAI.e air conditioners through Home Assistant using the official MirAI.e API and MQTT protocol.
+This integration allows you to control your Panasonic MirAIe air conditioners through Home Assistant using the official MirAIe API and MQTT protocol.
 
 ## Features
 
-- Control multiple Panasonic MirAI.e air conditioners
+- Control multiple Panasonic MirAIe air conditioners
 - Set target temperature
 - Change operation modes (Auto, Cool, Heat, Dry, Fan Only)
 - Adjust fan speed (Auto, Low, Medium, High, Quiet)
@@ -22,14 +22,14 @@ This integration allows you to control your Panasonic MirAI.e air conditioners t
 ## Requirements
 
 - Home Assistant version 2024.1.0 or higher
-- A Panasonic MirAI.e account with registered devices
+- A Panasonic MirAIe account with registered devices
 
 ## Installation
 
 ### HACS (Recommended)
 
 1. Ensure that [HACS](https://hacs.xyz/) is installed.
-2. Search for "Panasonic MirAI.e" in the HACS integrations tab.
+2. Search for "Panasonic MirAIe" in the HACS integrations tab.
 3. Click Install.
 4. Restart Home Assistant.
 
@@ -43,17 +43,17 @@ This integration allows you to control your Panasonic MirAI.e air conditioners t
 
 1. In the Home Assistant UI, go to "Configuration" -> "Integrations".
 2. Click the "+" button to add a new integration.
-3. Search for "Panasonic MirAI.e" and select it.
-4. Enter your MirAI.e account credentials (user ID/email and password).
-5. The integration will automatically discover and add your MirAI.e devices.
+3. Search for "Panasonic MirAIe" and select it.
+4. Enter your MirAIe account credentials (user ID/email and password).
+5. The integration will automatically discover and add your MirAIe devices.
 
 ## Usage
 
-After configuration, your Panasonic MirAI.e devices will appear as climate entities in Home Assistant. You can control them through the Home Assistant UI, Lovelace cards, or include them in automations and scripts.
+After configuration, your Panasonic MirAIe devices will appear as climate entities in Home Assistant. You can control them through the Home Assistant UI, Lovelace cards, or include them in automations and scripts.
 
 ### Climate Entity Attributes
 
-Each MirAI.e device will have the following attributes:
+Each MirAIe device will have the following attributes:
 
 - `current_temperature`: The current room temperature
 - `target_temperature`: The set target temperature
@@ -71,8 +71,8 @@ Each MirAI.e device will have the following attributes:
 ## Troubleshooting
 
 - If you encounter connection issues, ensure your Home Assistant instance has a stable internet connection.
-- Check the Home Assistant logs for any error messages related to the Panasonic MirAI.e integration.
-- If you experience authentication problems, try to log out and log in again in the MirAI.e mobile app, then reconfigure the integration in Home Assistant.
+- Check the Home Assistant logs for any error messages related to the Panasonic MirAIe integration.
+- If you experience authentication problems, try to log out and log in again in the MirAIe mobile app, then reconfigure the integration in Home Assistant.
 
 ## Contributing
 
