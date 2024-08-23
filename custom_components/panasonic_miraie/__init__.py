@@ -11,6 +11,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.const import CONF_PASSWORD
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN, CONF_USER_ID
 from .api import PanasonicMirAIeAPI
@@ -19,6 +20,8 @@ _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(logging.DEBUG)
 
 PLATFORMS: list[str] = ["climate"]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
