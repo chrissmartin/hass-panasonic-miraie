@@ -15,7 +15,6 @@ from .api import PanasonicMirAIeAPI
 from .const import CONF_USER_ID, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
-_LOGGER.setLevel(logging.DEBUG)
 
 PLATFORMS: list[str] = ["climate"]
 
