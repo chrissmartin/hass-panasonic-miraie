@@ -31,4 +31,6 @@ jobs:
           pip install ruff
 
       - name: Run Ruff
-        uses: chartboost/ruff-action@v1
+        run: |
+          ruff check .
+          ruff format --check .
