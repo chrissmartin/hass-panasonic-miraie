@@ -39,9 +39,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await api.initialize()
     except HomeAssistantError as e:
         _LOGGER.error(f"Error setting up Panasonic MirAIe integration: {e}")
-        raise ConfigEntryNotReady(
-            f"Error setting up Panasonic MirAIe integration: {e}"
-        )
+        raise ConfigEntryNotReady(f"Error setting up Panasonic MirAIe integration: {e}")
 
     hass.data[DOMAIN][entry.entry_id] = api
 
