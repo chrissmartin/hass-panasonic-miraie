@@ -1,11 +1,11 @@
 {
+  "documentation": "https://github.com/chrissmartin/hass-panasonic-miraie",
+  "name": "Panasonic MirAI.e",
   "codeowners": ["@chrissmartin"],
   "config_flow": true,
-  "documentation": "https://github.com/chrissmartin/hass-panasonic-miraie",
   "domain": "panasonic_miraie",
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/chrissmartin/hass-panasonic-miraie/issues",
-  "name": "Panasonic MirAI.e",
   "requirements": [
     "asyncio-mqtt==0.16.2",
     "async_timeout>=4.0.3",
