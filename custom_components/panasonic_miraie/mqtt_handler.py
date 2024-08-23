@@ -3,7 +3,7 @@ import logging
 import uuid
 import json
 from typing import Callable, Any
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from asyncio_mqtt import Client, MqttError
 import ssl
 
