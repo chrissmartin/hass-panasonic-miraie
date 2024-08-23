@@ -7,11 +7,8 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.exceptions import HomeAssistantError
 
 from .const import (
-    DOMAIN,
     MIRAIE_AUTH_API_BASE_URL,
     MIRAIE_APP_API_BASE_URL,
-    LOGIN_RETRY_DELAY,
-    LOGIN_TOKEN_REFRESH_INTERVAL,
 )
 from .mqtt_handler import MQTTHandler
 
@@ -38,6 +35,11 @@ class PanasonicMirAIeAPI:
 
         if not await self.connect_mqtt():
             raise HomeAssistantError("Failed to connect to MQTT broker")
+
+    def _get_scope(self):
+        if "miraie_scope_id" not in self.hass.data:
+            self.hass.data["miraie_scope_id"] = random.randint(0, 999999999)
+        return f"an_{self.hass.data['miraie_scope_id']}"
 
     async def login(self):
         """Login to the MirAIe API."""
@@ -240,27 +242,33 @@ class PanasonicMirAIeAPI:
 
     async def set_power(self, device_topic: str, state: str):
         """Set the power state of a device."""
-        await self.mqtt_handler.publish(f"{device_topic}/control", {"ps": state})
+        payload = self._get_base_payload()
+        payload.update({"ps": state})
+        await self.mqtt_handler.publish(f"{device_topic}/control", payload)
 
     async def set_mode(self, device_topic: str, mode: str):
         """Set the operation mode of a device."""
-        await self.mqtt_handler.publish(f"{device_topic}/control", {"acmd": mode})
+        payload = self._get_base_payload()
+        payload.update({"acmd": mode})
+        await self.mqtt_handler.publish(f"{device_topic}/control", payload)
 
     async def set_temperature(self, device_topic: str, temperature: float):
         """Set the target temperature of a device."""
-        await self.mqtt_handler.publish(
-            f"{device_topic}/control", {"actmp": str(temperature)}
-        )
+        payload = self._get_base_payload()
+        payload.update({"actmp": str(temperature)})
+        await self.mqtt_handler.publish(f"{device_topic}/control", payload)
 
     async def set_fan_mode(self, device_topic: str, fan_mode: str):
         """Set the fan mode of a device."""
-        await self.mqtt_handler.publish(f"{device_topic}/control", {"acfs": fan_mode})
+        payload = self._get_base_payload()
+        payload.update({"acfs": fan_mode})
+        await self.mqtt_handler.publish(f"{device_topic}/control", payload)
 
     async def set_swing_mode(self, device_topic: str, swing_mode: str):
         """Set the swing mode of a device."""
-        await self.mqtt_handler.publish(f"{device_topic}/control", {"acvs": swing_mode})
+        payload = self._get_base_payload()
+        payload.update({"acvs": swing_mode})
+        await self.mqtt_handler.publish(f"{device_topic}/control", payload)
 
-    def _get_scope(self):
-        if "miraie_scope_id" not in self.hass.data:
-            self.hass.data["miraie_scope_id"] = random.randint(0, 999999999)
-        return f"an_{self.hass.data['miraie_scope_id']}"
+    def _get_base_payload(self):
+        return {"ki": 1, "cnt": "an", "sid": "1"}

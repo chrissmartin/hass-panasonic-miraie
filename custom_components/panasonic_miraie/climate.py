@@ -15,6 +15,7 @@ from homeassistant.components.climate.const import (
     FAN_MEDIUM,
     FAN_HIGH,
     FAN_DIFFUSE,
+    SWING_ON,
     SWING_OFF,
     SWING_VERTICAL,
     SWING_HORIZONTAL,
@@ -49,6 +50,7 @@ FAN_MODE_MAP = {
 
 SWING_MODE_MAP = {
     SWING_OFF: "3",
+    SWING_ON: "0",
     SWING_VERTICAL: "0",
     SWING_HORIZONTAL: "0",
     SWING_BOTH: "0",
@@ -203,6 +205,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
             _LOGGER.debug(f"Setting temperature for {self._attr_name} to {temperature}")
             try:
                 await self._api.set_temperature(self._device_topic, temperature)
+                await self.async_update()
             except Exception as e:
                 _LOGGER.error(f"Error setting temperature for {self._attr_name}: {e}")
 
@@ -219,6 +222,8 @@ class PanasonicMirAIeClimate(ClimateEntity):
                 )
                 if miraie_mode:
                     await self._api.set_mode(self._device_topic, miraie_mode)
+
+            await self.async_update()
         except Exception as e:
             _LOGGER.error(f"Error setting HVAC mode for {self._attr_name}: {e}")
 
@@ -231,6 +236,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
             )
             if miraie_fan_mode:
                 await self._api.set_fan_mode(self._device_topic, miraie_fan_mode)
+            await self.async_update()
         except Exception as e:
             _LOGGER.error(f"Error setting fan mode for {self._attr_name}: {e}")
 
@@ -241,6 +247,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
             miraie_swing_mode = SWING_MODE_MAP.get(swing_mode)
             if miraie_swing_mode:
                 await self._api.set_swing_mode(self._device_topic, miraie_swing_mode)
+            await self.async_update()
         except Exception as e:
             _LOGGER.error(f"Error setting swing mode for {self._attr_name}: {e}")
 

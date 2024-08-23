@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import random
-import asyncio
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -25,7 +24,6 @@ PLATFORMS: list[str] = ["climate"]
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Panasonic MirAI.e component."""
     hass.data.setdefault(DOMAIN, {})
-    hass.data["miraie_scope_id"] = random.randint(0, 999999999)
     return True
 
 
