@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import timedelta
 import logging
 from typing import Any
@@ -101,6 +102,8 @@ class PanasonicMirAIeClimate(ClimateEntity):
     _attr_hvac_modes = list(HVAC_MODE_MAP.values())
     _attr_fan_modes = list(FAN_MODE_MAP.values())
     _attr_swing_modes = list(SWING_MODE_MAP.keys())
+    _update_lock = asyncio.Lock()
+    _update_delay = 5  # 5-second delay, adjust as needed
 
     def __init__(self, api, device_topic, device_name, device_id):
         """Initialize the climate device.
@@ -169,20 +172,24 @@ class PanasonicMirAIeClimate(ClimateEntity):
         except Exception as e:
             _LOGGER.error("Error unsubscribing %s: %s", self._attr_name, e)
 
-    async def async_update(self) -> None:
+    async def async_update(self, *_: Any) -> None:
         """Fetch new state data for this entity.
 
         Returns:
             None
 
         """
-        try:
-            state = await self._api.get_device_state(self._device_id)
-            await self._handle_state_update(self._device_topic, state)
-        except Exception as e:
-            _LOGGER.error("Error updating %s: %s", self._attr_name, e)
-            self._attr_available = False
-            self.async_write_ha_state()
+        async with self._update_lock:
+            await asyncio.sleep(self._update_delay)
+            try:
+                _LOGGER.debug("[async_update] Device ID: %s", self._device_id)
+                state = await self._api.get_device_state(self._device_id)
+                await self._handle_state_update(self._device_topic, state)
+            except Exception as e:
+                _LOGGER.error("Error updating %s: %s", self._attr_name, e)
+                self._attr_available = False
+            finally:
+                self.async_write_ha_state()
 
     async def _handle_state_update(self, topic: str, payload: dict[str, Any]) -> None:
         """Handle state updates from the API.
@@ -262,9 +269,12 @@ class PanasonicMirAIeClimate(ClimateEntity):
             _LOGGER.debug(
                 "Setting temperature for %s to %s", self._attr_name, temperature
             )
+            # Update local state immediately
+            self._attr_target_temperature = float(temperature)
+            self.async_write_ha_state()
+
             try:
                 await self._api.set_temperature(self._device_topic, temperature)
-                await self.async_update()
             except Exception as e:
                 _LOGGER.error(
                     "Error setting temperature for %s: %s", self._attr_name, e
@@ -281,6 +291,11 @@ class PanasonicMirAIeClimate(ClimateEntity):
 
         """
         _LOGGER.debug("Setting HVAC mode for %s to %s", self._attr_name, hvac_mode)
+
+        # Update local state immediately
+        self._attr_hvac_mode = hvac_mode
+        self.async_write_ha_state()
+
         try:
             if hvac_mode == HVACMode.OFF:
                 await self._api.set_power(self._device_topic, "off")
@@ -291,8 +306,6 @@ class PanasonicMirAIeClimate(ClimateEntity):
                 )
                 if miraie_mode:
                     await self._api.set_mode(self._device_topic, miraie_mode)
-
-            await self.async_update()
         except Exception as e:
             _LOGGER.error("Error setting HVAC mode for %s: %s", self._attr_name, e)
 
@@ -307,13 +320,17 @@ class PanasonicMirAIeClimate(ClimateEntity):
 
         """
         _LOGGER.debug("Setting fan mode for %s to %s", self._attr_name, fan_mode)
+
+        # Update local state immediately
+        self._attr_fan_mode = fan_mode
+        self.async_write_ha_state()
+
         try:
             miraie_fan_mode = next(
                 (k for k, v in FAN_MODE_MAP.items() if v == fan_mode), None
             )
             if miraie_fan_mode:
                 await self._api.set_fan_mode(self._device_topic, miraie_fan_mode)
-            await self.async_update()
         except Exception as e:
             _LOGGER.error("Error setting fan mode for %s: %s", self._attr_name, e)
 
@@ -328,11 +345,15 @@ class PanasonicMirAIeClimate(ClimateEntity):
 
         """
         _LOGGER.debug("Setting swing mode for %s to %s", self._attr_name, swing_mode)
+
+        # Update local state immediately
+        self._attr_swing_mode = swing_mode
+        self.async_write_ha_state()
+
         try:
             miraie_swing_mode = SWING_MODE_MAP.get(swing_mode)
             if miraie_swing_mode:
                 await self._api.set_swing_mode(self._device_topic, miraie_swing_mode)
-            await self.async_update()
         except Exception as e:
             _LOGGER.error("Error setting swing mode for %s: %s", self._attr_name, e)
 
