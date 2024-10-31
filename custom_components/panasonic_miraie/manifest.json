@@ -13,5 +13,5 @@
     "async_timeout>=4.0.3",
     "voluptuous>=0.15.2"
   ],
-  "version": "0.3.0"
+  "version": "0.4.2"
 }
