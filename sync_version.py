@@ -18,6 +18,11 @@ def get_version_from_tag():
 
     # Remove 'v' prefix if present
     version = tag[1:] if tag.startswith("v") else tag
+
+    # Validate version format
+    if not re.match(r"^\d+\.\d+\.\d+$", version):
+        print(f"Invalid version format: {version}. Expected format: vX.Y.Z")
+        sys.exit(1)
     return version
 
 

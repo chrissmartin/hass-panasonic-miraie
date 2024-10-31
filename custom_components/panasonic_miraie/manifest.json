@@ -1,7 +1,9 @@
 {
   "domain": "panasonic_miraie",
   "name": "Panasonic MirAIe",
-  "codeowners": ["@chrissmartin"],
+  "codeowners": [
+    "@chrissmartin"
+  ],
   "config_flow": true,
   "documentation": "https://github.com/chrissmartin/hass-panasonic-miraie",
   "iot_class": "cloud_push",
