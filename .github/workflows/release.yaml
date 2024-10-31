@@ -28,12 +28,13 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: |
+          pip install tomlkit
           python sync_version.py
 
       - name: Commit Version Updates
         run: |
-          git config --local user.email "thechrissmartin@gmail.com"
-          git config --local user.name "Chriss Martin"
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
           git add custom_components/panasonic_miraie/manifest.json pyproject.toml
           git commit -m "chore: sync version numbers to ${{ github.ref_name }}" || echo "No changes to commit"
           git push

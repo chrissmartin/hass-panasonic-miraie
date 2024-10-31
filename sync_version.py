@@ -8,6 +8,8 @@ from pathlib import Path
 import re
 import sys
 
+import tomlkit
+
 
 def get_version_from_tag():
     """Get version from git tag, removing 'v' prefix."""
@@ -47,16 +49,17 @@ def update_manifest_version(manifest_path, new_version):
 def update_pyproject_version(pyproject_path, new_version):
     """Update version in pyproject.toml."""
     try:
-        with open(pyproject_path) as f:
-            content = f.read()
+        # Read the TOML file preserving the formatting
+        with open(pyproject_path, encoding="utf-8") as f:
+            toml_content = f.read()
+            pyproject_data = tomlkit.parse(toml_content)
 
-        # Replace version using regex
-        new_content = re.sub(
-            r'version\s*=\s*"[^"]+"', f'version = "{new_version}"', content
-        )
+        # Update the version field under the [project] section
+        pyproject_data["project"]["version"] = new_version
 
-        with open(pyproject_path, "w") as f:
-            f.write(new_content)
+        # Write the updated data back to the file preserving formatting
+        with open(pyproject_path, "w", encoding="utf-8") as f:
+            f.write(tomlkit.dumps(pyproject_data))
 
         return True
     except Exception as e:
