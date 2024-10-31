@@ -26,18 +26,82 @@ This integration allows you to control your Panasonic MirAIe air conditioners th
 
 ## Installation
 
-### HACS (Recommended)
+### Installing via HACS (Recommended)
 
-1. Ensure that [HACS](https://hacs.xyz/) is installed.
-2. Search for "Panasonic MirAIe" in the HACS integrations tab.
-3. Click Install.
-4. Restart Home Assistant.
+The easiest way to install the **hass-panasonic-miraie** is through [HACS (Home Assistant Community Store)](https://hacs.xyz/).
+
+#### **Step 1: Install HACS**
+
+If you haven't installed HACS yet, follow the [official installation guide](https://hacs.xyz/docs/setup/download) to set it up.
+
+#### **Step 2: Add Custom Repository**
+
+1. Open your Home Assistant instance.
+2. Navigate to **HACS** in the sidebar.
+3. Click on the **Integrations** tab.
+4. Click on the three-dot menu (⋮) in the top right corner.
+5. Select **Custom repositories**.
+
+   ![Custom Repositories](https://www.hacs.xyz/assets/images/screenshots/overview/menu/dark.png#only-dark)
+
+6. In the **Add custom repository URL** field, enter:
+
+   ```url
+   https://github.com/chrissmartin/hass-panasonic-miraie
+   ```
+
+7. In the **Category** dropdown, select **Integration**.
+8. Click **Add**.
+
+#### **Step 3: Install the Integration**
+
+1. After adding the repository, search for **Panasonic MirAIe** in HACS.
+2. Click on the integration to view details.
+3. Click **Download** to install the integration.
+
+#### **Step 4: Restart Home Assistant**
+
+After installation, you need to restart Home Assistant for the integration to be recognized.
+
+1. Go to **Settings** > **System** > **Restart**.
+2. Click **Restart** and wait for Home Assistant to restart.
 
 ### Manual Installation
 
-1. Download the latest release from the [GitHub repository](https://github.com/chrissmartin/hass-panasonic-miraie).
-2. Unzip the release and copy the `custom_components/panasonic_miraie` directory to your Home Assistant's `custom_components` directory.
-3. Restart Home Assistant.
+If you prefer to install the integration manually, follow these steps:
+
+1. **Download the Integration**
+
+   - Clone or download the `hass-panasonic-miraie` repository from GitHub.
+
+2. **Copy to Home Assistant**
+
+   - Place the `hass-panasonic-miraie` directory inside the `custom_components` directory of your Home Assistant configuration folder.
+   - Your directory structure should look like this:
+
+     ```tree
+     └── config/
+         ├── configuration.yaml
+         └── custom_components/
+          └── panasonic_miraie
+              ├── __init__.py
+              ├── api.py
+              ├── climate.py
+              ├── config_flow.py
+              ├── const.py
+              ├── icons
+              │    └── logo.png
+              ├── manifest.json
+              ├── mqtt_handler.py
+              └── translations
+                  └── en.json
+     ```
+
+   - If the `custom_components` directory doesn't exist, create it.
+
+3. **Restart Home Assistant**
+
+   - After copying the files, restart Home Assistant to recognize the new integration.
 
 ## Configuration
 
