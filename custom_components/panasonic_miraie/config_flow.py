@@ -66,7 +66,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
     """Validate user input, testing credentials and connectivity."""
-    api = PanasonicMirAIeAPI(data[CONF_USER_ID], data[CONF_PASSWORD])
+    api = PanasonicMirAIeAPI(hass, data[CONF_USER_ID], data[CONF_PASSWORD])
 
     # Authentication and connection check
     if not await api.login():
