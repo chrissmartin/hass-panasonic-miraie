@@ -17,6 +17,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          token: ${{ secrets.GH_PAT }}
           fetch-depth: 0
 
       - name: Set up Python
@@ -38,6 +39,8 @@ jobs:
           git add custom_components/panasonic_miraie/manifest.json pyproject.toml
           git commit -m "chore: sync version numbers to ${{ github.ref_name }}" || echo "No changes to commit"
           git push origin HEAD:main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
       - name: Generate Changelog
         id: changelog
