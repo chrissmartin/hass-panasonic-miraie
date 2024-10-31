@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 # ruff: noqa: T201
+
 """Script to synchronize version numbers from git tag across project files."""
 
 import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 import tomlkit
@@ -23,7 +25,7 @@ def get_version_from_tag():
 
     # Validate version format
     if not re.match(r"^\d+\.\d+\.\d+$", version):
-        print(f"Invalid version format: {version}. Expected format: vX.Y.Z")
+        print(f"Invalid version format: {version}. Expected format: X.Y.Z")
         sys.exit(1)
     return version
 
@@ -67,14 +69,28 @@ def update_pyproject_version(pyproject_path, new_version):
         return False
 
 
+def get_git_root():
+    """Get the root directory of the git repository."""
+    try:
+        git_root = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"], encoding="utf-8"
+        ).strip()
+        return Path(git_root)
+    except subprocess.CalledProcessError:
+        print(
+            "Failed to find git repository root. Ensure this script is run within a git repository."
+        )
+        sys.exit(1)
+
+
 def main():
     """Synchronize versions."""
     # Get version from git tag
     version = get_version_from_tag()
     print(f"Using version from tag: {version}")
 
-    # Get project root directory
-    project_root = Path(__file__).parent
+    # Get project root directory using git repository root
+    project_root = get_git_root()
 
     # Define file paths
     manifest_path = project_root / "custom_components/panasonic_miraie/manifest.json"
