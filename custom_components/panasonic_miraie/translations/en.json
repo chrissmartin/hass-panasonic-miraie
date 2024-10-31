@@ -5,7 +5,7 @@
         "title": "Connect to Panasonic MirAIe",
         "description": "Please enter your Panasonic MirAIe credentials",
         "data": {
-          "user_id": "Email or Mobile Number",
+          "user_id": "User ID (Email or Mobile)",
           "password": "Password"
         }
       }
