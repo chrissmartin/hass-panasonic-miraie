@@ -21,7 +21,55 @@ jobs:
 
       - name: Generate Changelog
         id: changelog
-        uses: mikepenz/release-changelog-builder-action@v4
+        uses: mikepenz/release-changelog-builder-action@v5
+        with:
+          mode: "COMMIT"
+          configurationJson: |
+            {
+              "template": "#{{CHANGELOG}}",
+              "categories": [
+                {
+                    "title": "## ⚠ BREAKING CHANGES",
+                    "labels": ["breaking"]
+                },
+                {
+                    "title": "## Feature",
+                    "labels": ["feat", "feature"]
+                },
+                {
+                    "title": "## Fix",
+                    "labels": ["fix", "bug"]
+                },
+                {
+                    "title": "## Chore",
+                    "labels": ["chore"]
+                },
+                {
+                    "title": "## Documentation",
+                    "labels": ["docs"]
+                },
+                {
+                    "title": "## Test",
+                    "labels": ["test"]
+                },
+                {
+                    "title": "## Other",
+                    "labels": []
+                }
+              ],
+              "label_extractor": [
+                {
+                  "pattern": "^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test){1}(\\([\\w\\-\\.]+\\))?(!)?: ([\\w ])+([\\s\\S]*)",
+                  "target": "$1",
+                  "on_property": "title"
+                },
+                {
+                  "pattern": "^.+!: ([\\w ])+([\\s\\S]*)",
+                  "target": "breaking",
+                  "on_property": "title"
+                }
+              ]
+            }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
