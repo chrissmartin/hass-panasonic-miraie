@@ -2,6 +2,8 @@
 
 This integration allows you to control your Panasonic MirAIe air conditioners through Home Assistant using the official MirAIe API and MQTT protocol.
 
+<a href="https://www.buymeacoffee.com/chrissmartin" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
+
 ## Features
 
 - Control multiple Panasonic MirAIe air conditioners
