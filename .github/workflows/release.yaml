@@ -42,6 +42,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
+      - name: Fetch Latest Main
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Generate Changelog
         id: changelog
         uses: mikepenz/release-changelog-builder-action@v5
