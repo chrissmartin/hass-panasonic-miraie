@@ -1,6 +1,6 @@
 [project]
 name = "panasonic_miraie"
-version = "0.4.2"
+version = "0.4.3"
 description = "Home Assistant integration for Panasonic MirAIe air conditioners"
 readme = "README.md"
 requires-python = ">=3.11"
