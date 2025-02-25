@@ -9,6 +9,7 @@ and publishing within the Home Assistant ecosystem.
 import asyncio
 from collections.abc import Callable
 import contextlib
+from datetime import timedelta
 import json
 import logging
 import ssl
@@ -20,7 +21,6 @@ from asyncio_mqtt import Client, MqttError
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_track_time_interval
-from homeassistant.util import dt as dt_util
 
 from .const import (
     MIRAIE_BROKER_HOST,
@@ -139,7 +139,7 @@ class MQTTHandler:
                 self._connection_monitor = async_track_time_interval(
                     self.hass,
                     self._check_connection_status,
-                    dt_util.timedelta(seconds=MQTT_RECONNECT_INTERVAL),
+                    timedelta(seconds=MQTT_RECONNECT_INTERVAL),
                 )
 
             return True

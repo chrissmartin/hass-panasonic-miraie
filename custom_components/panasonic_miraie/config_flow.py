@@ -32,13 +32,20 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             try:
+                # Set unique ID first, then check if already configured
                 await self.async_set_unique_id(user_input[CONF_USER_ID])
+
+                # This will raise AbortFlow if already configured - we handle it in the except block
                 self._abort_if_unique_id_configured()
 
                 # Validate input and create entry on success
                 info = await validate_input(self.hass, user_input)
                 return self.async_create_entry(title=info["title"], data=user_input)
 
+            except config_entries.data_entry_flow.AbortFlow as abort_exc:
+                # Handle the abort flow case properly
+                _LOGGER.debug("Configuration already exists for this account")
+                return self.async_abort(reason=abort_exc.reason)
             except CannotConnect:
                 errors["base"] = "cannot_connect"
             except InvalidAuth:
