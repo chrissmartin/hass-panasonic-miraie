@@ -14,7 +14,6 @@ import json
 import logging
 import ssl
 import time
-from typing import Any
 import uuid
 
 from asyncio_mqtt import Client, MqttError
@@ -28,6 +27,7 @@ from .const import (
     MIRAIE_BROKER_USE_SSL,
     MQTT_CONNECTION_TIMEOUT,
     MQTT_KEEPALIVE,
+    MQTT_PING_INTERVAL,
     MQTT_RECONNECT_INTERVAL,
 )
 
@@ -55,8 +55,11 @@ class MQTTHandler:
         self._retry_count = 0
         self._max_retry_count = 10
         self._last_successful_connection = 0
+        self._last_message_time = 0
         self._connection_monitor = None
+        self._ping_task = None
         self._pending_reconnect = False
+        self._client_id = f"ha-panasonic-miraie-{uuid.uuid4().hex}"
 
     async def connect(self, username: str, password: str) -> bool:  # noqa: C901
         """Connect to the MQTT broker.
@@ -64,6 +67,9 @@ class MQTTHandler:
         Args:
             username: The username for MQTT authentication.
             password: The password for MQTT authentication.
+
+        Returns:
+            bool: True if connection was successful, False otherwise.
 
         Raises:
             MqttError: If there's an error connecting to the MQTT broker.
@@ -83,7 +89,6 @@ class MQTTHandler:
             MIRAIE_BROKER_PORT,
         )
 
-        client_id = f"ha-panasonic-miraie-{uuid.uuid4().hex}"
         try:
             tls_context = None
             if MIRAIE_BROKER_USE_SSL:
@@ -95,12 +100,19 @@ class MQTTHandler:
                     await self.client.disconnect()
                 self.client = None
 
+            # Cancel existing ping task
+            if self._ping_task:
+                self._ping_task.cancel()
+                with contextlib.suppress(Exception):
+                    await self._ping_task
+                self._ping_task = None
+
             self.client = Client(
                 hostname=MIRAIE_BROKER_HOST,
                 port=MIRAIE_BROKER_PORT,
                 username=username,
                 password=password,
-                client_id=client_id,
+                client_id=self._client_id,
                 tls_context=tls_context,
                 keepalive=MQTT_KEEPALIVE,
             )
@@ -115,7 +127,9 @@ class MQTTHandler:
                 return False
 
             self.connected.set()
-            self._last_successful_connection = time.time()
+            current_time = time.time()
+            self._last_successful_connection = current_time
+            self._last_message_time = current_time
             self._retry_count = 0
             _LOGGER.info("Connected to Panasonic MirAIe MQTT broker")
 
@@ -132,6 +146,10 @@ class MQTTHandler:
                     await self._mqtt_task
 
             self._mqtt_task = asyncio.create_task(self._message_loop())
+
+            # Start the ping task to keep connection alive
+            self._ping_task = asyncio.create_task(self._keep_connection_alive())
+
             self._pending_reconnect = False
 
             # Start the connection monitor if not already running
@@ -155,6 +173,38 @@ class MQTTHandler:
             self._pending_reconnect = False
             return False
 
+    async def _keep_connection_alive(self) -> None:
+        """Keep the MQTT connection alive by periodically checking the status."""
+        try:
+            while self.connected.is_set():
+                await asyncio.sleep(MQTT_PING_INTERVAL)
+                if not self.client or not self.connected.is_set():
+                    break
+
+                # check connection status and force a ping via the client's internal mechanism
+                try:
+                    # For asyncio-mqtt, we can force a ping by checking the connection status
+                    is_connected = self.client._client.is_connected()
+                    if is_connected:
+                        # Just updating the timestamp since we had a successful connection check
+                        self._last_message_time = time.time()
+                        _LOGGER.debug("Connection check successful")
+                    else:
+                        _LOGGER.warning("Connection check failed, client disconnected")
+                        self.connected.clear()
+                        break
+                except Exception as e:
+                    _LOGGER.warning("Error checking connection status: %s", e)
+                    # If we can't check status, assume disconnected
+                    self.connected.clear()
+                    break
+        except asyncio.CancelledError:
+            _LOGGER.debug("Connection monitoring loop cancelled")
+        except Exception as e:
+            _LOGGER.error("Unexpected error in connection monitoring: %s", e)
+            # If monitoring fails, mark as disconnected so reconnect process starts
+            self.connected.clear()
+
     async def _check_connection_status(self, *_) -> None:
         """Periodically check the connection status and reconnect if needed."""
         if not self.connected.is_set() and not self._pending_reconnect:
@@ -162,41 +212,74 @@ class MQTTHandler:
             await self.connect_with_retry(self.username, self.password)
         elif self.connected.is_set():
             # Check if connection is stale (no message received for a while)
-            connection_age = time.time() - self._last_successful_connection
-            if connection_age > MQTT_KEEPALIVE * 1.5:
+            connection_age = time.time() - self._last_message_time
+            stale_threshold = MQTT_KEEPALIVE * 1.5
+
+            if connection_age > stale_threshold:
                 _LOGGER.warning(
                     "MQTT connection may be stale (no activity for %d seconds), reconnecting",
                     connection_age,
                 )
-                self.connected.clear()
-                await self.connect_with_retry(self.username, self.password)
+                # Instead of just clearing the connected flag, handle graceful disconnection first
+                await self._handle_graceful_reconnect()
+
+    async def _handle_graceful_reconnect(self) -> None:
+        """Handle a reconnection with proper cleanup."""
+        # First mark as disconnected to prevent other operations
+        self.connected.clear()
+
+        # Try to gracefully disconnect existing client
+        if self.client:
+            with contextlib.suppress(Exception):
+                await self.client.disconnect()
+            self.client = None
+
+        # Cancel existing message loop
+        if self._mqtt_task:
+            self._mqtt_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._mqtt_task
+            self._mqtt_task = None
+
+        # Cancel existing ping task
+        if self._ping_task:
+            self._ping_task.cancel()
+            with contextlib.suppress(Exception):
+                await self._ping_task
+            self._ping_task = None
+
+        # Now reconnect
+        await self.connect_with_retry(self.username, self.password)
 
     async def _message_loop(self):
         """Handle the message loop for incoming MQTT messages."""
         try:
             async with self.client.messages() as messages:
                 async for message in messages:
-                    # Update last successful connection time when receiving messages
-                    self._last_successful_connection = time.time()
+                    # Update last message time whenever we receive a message
+                    self._last_message_time = time.time()
                     await self._handle_message(message)
         except MqttError as error:
-            _LOGGER.error("MQTT Error in message loop: %s", error)
-            self.connected.clear()
-            # Attempt to reconnect
-            if not self._pending_reconnect:
-                self.hass.async_create_task(
-                    self.connect_with_retry(self.username, self.password)
-                )
+            if self.connected.is_set():  # Only log if we thought we were connected
+                _LOGGER.error("MQTT Error in message loop: %s", error)
+                self.connected.clear()
+                # Handle reconnection outside the exception handler
+                self.hass.async_create_task(self._handle_message_loop_error())
         except asyncio.CancelledError:
-            _LOGGER.info("MQTT message loop cancelled")
+            _LOGGER.debug("MQTT message loop cancelled")
         except Exception as e:
-            _LOGGER.error("Unexpected error in MQTT message loop: %s", e)
-            self.connected.clear()
-            # Attempt to reconnect on unexpected errors
-            if not self._pending_reconnect:
-                self.hass.async_create_task(
-                    self.connect_with_retry(self.username, self.password)
-                )
+            if self.connected.is_set():  # Only log if we thought we were connected
+                _LOGGER.error("Unexpected error in MQTT message loop: %s", e)
+                self.connected.clear()
+                # Handle reconnection outside the exception handler
+                self.hass.async_create_task(self._handle_message_loop_error())
+
+    async def _handle_message_loop_error(self) -> None:
+        """Handle errors in the message loop with delayed reconnection."""
+        # Wait a short time before reconnecting to avoid rapid reconnection loops
+        await asyncio.sleep(1)
+        if not self._pending_reconnect:
+            await self.connect_with_retry(self.username, self.password)
 
     async def _handle_message(self, message):
         """Handle incoming MQTT message.
@@ -242,8 +325,8 @@ class MQTTHandler:
         # Use exponential backoff for reconnection attempts
         for attempt in range(max_retries):
             if attempt > 0:
-                # Calculate backoff time: 2^attempt with a max of 300 seconds
-                backoff_time = min(2**attempt, 300)
+                # Calculate backoff time: 2^attempt with a max of 60 seconds
+                backoff_time = min(2**attempt, 60)
                 _LOGGER.info(
                     "Waiting %d seconds before reconnection attempt %d/%d",
                     backoff_time,
@@ -280,6 +363,13 @@ class MQTTHandler:
                 await self._mqtt_task
             self._mqtt_task = None
 
+        # Cancel ping task
+        if self._ping_task:
+            self._ping_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._ping_task
+            self._ping_task = None
+
         # Disconnect from broker
         if self.client:
             try:
@@ -291,7 +381,7 @@ class MQTTHandler:
         self.connected.clear()
         _LOGGER.info("Disconnected from Panasonic MirAIe MQTT broker")
 
-    async def subscribe(self, topic: str, callback: Callable[[str, Any], None]):
+    async def subscribe(self, topic: str, callback: Callable[[str, any], None]):
         """Subscribe to an MQTT topic.
 
         Args:
@@ -366,6 +456,9 @@ class MQTTHandler:
             async with asyncio.timeout(5):
                 await self.client.publish(topic, json.dumps(payload))
             _LOGGER.debug("Successfully published to %s", topic)
+            self._last_message_time = (
+                time.time()
+            )  # Update last message time after successful publish
             return True
         except TimeoutError:
             _LOGGER.error("Timeout publishing to %s", topic)

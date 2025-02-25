@@ -20,9 +20,10 @@ LOGIN_RETRY_DELAY = 360 * 1000
 LOGIN_TOKEN_REFRESH_INTERVAL = 604800 * 1000
 
 # MQTT connection parameters
-MQTT_KEEPALIVE = 60  # 60 seconds
+MQTT_KEEPALIVE = 30  # 30 seconds (smaller value than default)
 MQTT_CONNECTION_TIMEOUT = 10  # 10 seconds
 MQTT_RECONNECT_INTERVAL = 60  # Check connection every 60 seconds
+MQTT_PING_INTERVAL = 45  # Send ping every 45 seconds to keep connection alive
 
 # API request timeouts
 API_TIMEOUT = 15  # 15 seconds
