@@ -86,7 +86,7 @@ async def async_setup_entry(
         async with asyncio.timeout(API_TIMEOUT):
             devices = await api.get_devices()
             _LOGGER.debug("Retrieved devices: %s", devices)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         _LOGGER.error("Timeout retrieving devices from Panasonic MirAIe API")
         devices = []
     except Exception as e:
@@ -238,7 +238,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
                 else:
                     _LOGGER.warning("Received empty state for %s", self._attr_name)
                     self._increment_missed_updates()
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 _LOGGER.error(
                     "Timeout getting state for %s - API request took too long",
                     self._attr_name,
@@ -358,6 +358,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
 
         Returns:
             bool: True if command succeeded, False otherwise
+
         """
         success = False
 
@@ -380,7 +381,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
                         await command_fn(*args, **kwargs)
                     success = True
                     break
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     _LOGGER.error("Timeout sending command to %s", self._attr_name)
                 except Exception as e:
                     _LOGGER.error(

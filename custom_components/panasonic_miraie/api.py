@@ -118,7 +118,7 @@ class PanasonicMirAIeAPI:
                                 "Login failed with status code: %d", response.status
                             )
                             return False
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 _LOGGER.error("Login request timed out")
                 return False
             except Exception as e:
@@ -168,7 +168,7 @@ class PanasonicMirAIeAPI:
                             response.status,
                         )
                         return False
-        except asyncio.TimeoutError:
+        except TimeoutError:
             _LOGGER.error("Home details request timed out")
             return False
         except Exception as e:
@@ -212,7 +212,7 @@ class PanasonicMirAIeAPI:
         self.home_id = None
         self._last_token_refresh = 0
 
-    async def get_devices(self):
+    async def get_devices(self):  # noqa: C901
         """Fetch all devices associated with the user's account.
 
         Returns:
@@ -279,7 +279,7 @@ class PanasonicMirAIeAPI:
                             "Failed to fetch devices. Status code: %d", response.status
                         )
                         return []
-        except asyncio.TimeoutError:
+        except TimeoutError:
             _LOGGER.error("Get devices request timed out")
             return []
         except Exception as e:
@@ -331,7 +331,7 @@ class PanasonicMirAIeAPI:
                         raise HomeAssistantError(
                             f"Failed to fetch device state. Status code: {response.status}"
                         )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             _LOGGER.error("Device state request for %s timed out", device_id)
             raise HomeAssistantError(f"Timeout fetching device state for {device_id}")
         except Exception as e:

@@ -58,7 +58,7 @@ class MQTTHandler:
         self._connection_monitor = None
         self._pending_reconnect = False
 
-    async def connect(self, username: str, password: str):
+    async def connect(self, username: str, password: str) -> bool:  # noqa: C901
         """Connect to the MQTT broker.
 
         Args:
@@ -91,10 +91,8 @@ class MQTTHandler:
 
             # Cancel existing client if there is one
             if self.client:
-                try:
+                with contextlib.suppress(Exception):
                     await self.client.disconnect()
-                except Exception:
-                    pass
                 self.client = None
 
             self.client = Client(
@@ -111,7 +109,7 @@ class MQTTHandler:
             try:
                 async with asyncio.timeout(MQTT_CONNECTION_TIMEOUT):
                     await self.client.connect()
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 _LOGGER.error("Timeout connecting to MQTT broker")
                 self._pending_reconnect = False
                 return False
@@ -157,7 +155,7 @@ class MQTTHandler:
             self._pending_reconnect = False
             return False
 
-    async def _check_connection_status(self, *_):
+    async def _check_connection_status(self, *_) -> None:
         """Periodically check the connection status and reconnect if needed."""
         if not self.connected.is_set() and not self._pending_reconnect:
             _LOGGER.info("Connection monitor detected disconnected state, reconnecting")
@@ -309,7 +307,7 @@ class MQTTHandler:
                 async with asyncio.timeout(5):
                     await self.client.subscribe(topic)
                 _LOGGER.debug("Successfully subscribed to topic: %s", topic)
-            except (asyncio.TimeoutError, Exception) as e:
+            except (TimeoutError, Exception) as e:
                 _LOGGER.error("Error subscribing to topic %s: %s", topic, e)
                 # Force reconnection on subscription error
                 self.connected.clear()
@@ -337,7 +335,7 @@ class MQTTHandler:
                 async with asyncio.timeout(5):
                     await self.client.unsubscribe(topic)
                 _LOGGER.debug("Successfully unsubscribed from topic: %s", topic)
-            except (asyncio.TimeoutError, Exception) as e:
+            except (TimeoutError, Exception) as e:
                 _LOGGER.error("Error unsubscribing from topic %s: %s", topic, e)
 
     async def publish(self, topic: str, payload: dict):
@@ -349,6 +347,7 @@ class MQTTHandler:
 
         Returns:
             bool: True if publishing was successful, False otherwise.
+
         """
         if not self.connected.is_set():
             _LOGGER.warning(
@@ -368,7 +367,7 @@ class MQTTHandler:
                 await self.client.publish(topic, json.dumps(payload))
             _LOGGER.debug("Successfully published to %s", topic)
             return True
-        except asyncio.TimeoutError:
+        except TimeoutError:
             _LOGGER.error("Timeout publishing to %s", topic)
             # Force reconnection on timeout
             self.connected.clear()
@@ -402,7 +401,7 @@ class MQTTHandler:
         try:
             await asyncio.wait_for(self.connected.wait(), timeout=timeout)
             _LOGGER.info("MQTT connection established")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             _LOGGER.error(
                 "Timeout waiting for MQTT connection after %d seconds", timeout
             )
