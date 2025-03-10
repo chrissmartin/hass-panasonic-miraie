@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from datetime import timedelta
 import logging
+import time
 from typing import Any
 
 from homeassistant.components.climate import ClimateEntity
@@ -35,6 +36,7 @@ from .const import (
     CLIMATE_UPDATE_INTERVAL,
     DOMAIN,
 )
+from .decorators.track_command import _track_command
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -158,6 +160,8 @@ class PanasonicMirAIeClimate(ClimateEntity):
             | ClimateEntityFeature.TURN_OFF
         )
         self._attr_available = True  # Start optimistically
+        self._mqtt_state_received_after_command = False
+        self._command_time = 0
 
         _LOGGER.debug(
             "Initialized climate entity: %s with topic %s",
@@ -286,6 +290,11 @@ class PanasonicMirAIeClimate(ClimateEntity):
             if topic.endswith("/state"):
                 self._state_via_mqtt = payload
 
+                # Check if this is a response to a recently sent command
+                if time.time() - self._command_time < 5:  # Within 5 seconds of command
+                    self._mqtt_state_received_after_command = True
+                    _LOGGER.debug("Received MQTT update after command")
+
             online_status = payload.get("onlineStatus")
             self._attr_available = online_status == "true"
 
@@ -380,6 +389,18 @@ class PanasonicMirAIeClimate(ClimateEntity):
                     async with asyncio.timeout(API_COMMAND_TIMEOUT):
                         await command_fn(*args, **kwargs)
                     success = True
+
+                    # Wait a short time for state update to arrive via MQTT
+                    await asyncio.sleep(0.5)
+
+                    # If we haven't received an MQTT update after the wait,
+                    # request a state update directly
+                    if success and not self._mqtt_state_received_after_command:
+                        _LOGGER.debug(
+                            "No MQTT update received, requesting state update"
+                        )
+                        self.hass.async_create_task(self.async_update())
+
                     break
                 except TimeoutError:
                     _LOGGER.error("Timeout sending command to %s", self._attr_name)
@@ -390,6 +411,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
 
         return success
 
+    @_track_command
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature.
 
@@ -422,6 +444,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
                 # Schedule an update to get the correct state
                 self.async_schedule_update_ha_state(True)
 
+    @_track_command
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new target hvac mode.
 
@@ -466,6 +489,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
             # Schedule an update to get the correct state
             self.async_schedule_update_ha_state(True)
 
+    @_track_command
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set new target fan mode.
 
@@ -498,6 +522,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
                 # Schedule an update to get the correct state
                 self.async_schedule_update_ha_state(True)
 
+    @_track_command
     async def async_set_swing_mode(self, swing_mode: str) -> None:
         """Set new target swing operation.
 
