@@ -18,3 +18,17 @@ LOGIN_RETRY_DELAY = 360 * 1000
 # network errors dynamically and re-issuing a login upon a 401 Unauthorized error.
 # 604,800 sec = 7 days
 LOGIN_TOKEN_REFRESH_INTERVAL = 604800 * 1000
+
+# MQTT connection parameters
+MQTT_KEEPALIVE = 30  # 30 seconds (smaller value than default)
+MQTT_CONNECTION_TIMEOUT = 10  # 10 seconds
+MQTT_RECONNECT_INTERVAL = 60  # Check connection every 60 seconds
+MQTT_PING_INTERVAL = 45  # Send ping every 45 seconds to keep connection alive
+
+# API request timeouts
+API_TIMEOUT = 15  # 15 seconds
+API_COMMAND_TIMEOUT = 5  # 5 seconds for commands
+
+# Climate entity parameters
+CLIMATE_UPDATE_INTERVAL = 300  # 5 minutes
+CLIMATE_COMMAND_RETRY = 2  # Number of retries for climate commands
