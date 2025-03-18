@@ -64,7 +64,7 @@ class MQTTHandler:
         try:
             tls_context = None
             if MIRAIE_BROKER_USE_SSL:
-                tls_context = ssl.create_default_context()
+                tls_context = await self.hass.async_add_executor_job(ssl.create_default_context)
 
             self.client = Client(
                 hostname=MIRAIE_BROKER_HOST,
