@@ -13,9 +13,8 @@ import json
 import logging
 import ssl
 from typing import Any
-import uuid
 
-from asyncio_mqtt import Client, MqttError
+from aiomqtt import Client, MqttError
 
 from homeassistant.core import HomeAssistant
 
@@ -62,7 +61,6 @@ class MQTTHandler:
             MIRAIE_BROKER_PORT,
         )
 
-        client_id = f"ha-panasonic-miraie-{uuid.uuid4().hex}"
         try:
             tls_context = None
             if MIRAIE_BROKER_USE_SSL:
@@ -73,11 +71,11 @@ class MQTTHandler:
                 port=MIRAIE_BROKER_PORT,
                 username=username,
                 password=password,
-                client_id=client_id,
                 tls_context=tls_context,
             )
 
-            await self.client.connect()
+            # TODO Switch to the newer context manager based approach to handling client connection
+            await self.client.__aenter__()
             self.connected.set()
             _LOGGER.info("Connected to Panasonic MirAIe MQTT broker")
 
@@ -92,9 +90,8 @@ class MQTTHandler:
     async def _message_loop(self):
         """Handle the message loop for incoming MQTT messages."""
         try:
-            async with self.client.messages() as messages:
-                async for message in messages:
-                    await self._handle_message(message)
+            async for message in self.client.messages:
+                await self._handle_message(message)
         except MqttError as error:
             _LOGGER.error("MQTT Error in message loop: %s", error)
             self.connected.clear()
@@ -157,7 +154,7 @@ class MQTTHandler:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._mqtt_task
         if self.client:
-            await self.client.disconnect()
+            await self.client.__aexit__(exc_type=None,exc=None, tb=None) # All the parameters can be None as stated in the aiomqtt documentation
             self.client = None
         self.connected.clear()
         _LOGGER.info("Disconnected from Panasonic MirAIe MQTT broker")
