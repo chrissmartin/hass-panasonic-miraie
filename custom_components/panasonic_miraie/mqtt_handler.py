@@ -64,7 +64,9 @@ class MQTTHandler:
         try:
             tls_context = None
             if MIRAIE_BROKER_USE_SSL:
-                tls_context = await self.hass.async_add_executor_job(ssl.create_default_context)
+                tls_context = await self.hass.async_add_executor_job(
+                    ssl.create_default_context
+                )
 
             self.client = Client(
                 hostname=MIRAIE_BROKER_HOST,
@@ -154,7 +156,9 @@ class MQTTHandler:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._mqtt_task
         if self.client:
-            await self.client.__aexit__(exc_type=None,exc=None, tb=None) # All the parameters can be None as stated in the aiomqtt documentation
+            await self.client.__aexit__(
+                exc_type=None, exc=None, tb=None
+            )  # All the parameters can be None as stated in the aiomqtt documentation
             self.client = None
         self.connected.clear()
         _LOGGER.info("Disconnected from Panasonic MirAIe MQTT broker")
