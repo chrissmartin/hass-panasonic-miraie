@@ -16,7 +16,7 @@ import ssl
 import time
 import uuid
 
-from asyncio_mqtt import Client, MqttError
+from aiomqtt import Client, MqttError
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_track_time_interval
@@ -92,7 +92,9 @@ class MQTTHandler:
         try:
             tls_context = None
             if MIRAIE_BROKER_USE_SSL:
-                tls_context = ssl.create_default_context()
+                tls_context = await self.hass.async_add_executor_job(
+                    ssl.create_default_context
+                )
 
             # Cancel existing client if there is one
             if self.client:
