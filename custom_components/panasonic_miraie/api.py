@@ -1,8 +1,9 @@
 """API client for Panasonic MirAIe devices integration with Home Assistant."""
 
-from asyncio import timeout
+import asyncio
 import logging
 import random
+import time
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -10,6 +11,8 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
+    API_TIMEOUT,
+    LOGIN_TOKEN_REFRESH_INTERVAL,
     MIRAIE_APP_API_BASE_URL,
     MIRAIE_AUTH_API_BASE_URL,
 )
@@ -37,6 +40,11 @@ class PanasonicMirAIeAPI:
         self.home_id = None
         self.http_session = async_get_clientsession(hass)
         self.mqtt_handler = MQTTHandler(hass)
+        self._last_token_refresh = 0
+        self._auth_lock = asyncio.Lock()
+        self._devices_cache = []
+        self._devices_cache_time = 0
+        self._devices_cache_ttl = 300  # 5 minutes
 
     async def initialize(self):
         """Initialize the API by logging in, fetching home details, and connecting to MQTT."""
@@ -67,41 +75,55 @@ class PanasonicMirAIeAPI:
             bool: True if login was successful, False otherwise.
 
         """
-        if self.access_token:
-            _LOGGER.debug("Already logged in, skipping login process")
-            return True
-
-        login_url = f"{MIRAIE_AUTH_API_BASE_URL}/userManagement/login"
-        _LOGGER.debug("Attempting to login to %s", login_url)
-
-        payload = {
-            "clientId": "PBcMcfG19njNCL8AOgvRzIC8AjQa",
-            "password": self.password,
-            "scope": self._get_scope(),
-        }
-
-        if "@" in self.user_id:
-            payload["email"] = self.user_id
-        else:
-            payload["mobile"] = self.user_id
-
-        try:
-            async with (
-                timeout(10),
-                self.http_session.post(login_url, json=payload) as response,
-            ):
-                if response.status == 200:
-                    data = await response.json()
-                    self.access_token = data.get("accessToken")
-                    _LOGGER.info("Login successful")
-                    _LOGGER.debug("Login response: %s", data)
+        # Use a lock to prevent multiple simultaneous login attempts
+        async with self._auth_lock:
+            # Check if token is still valid
+            if self.access_token:
+                current_time = time.time()
+                if (
+                    current_time - self._last_token_refresh
+                ) < LOGIN_TOKEN_REFRESH_INTERVAL / 1000:
+                    _LOGGER.debug("Using existing access token")
                     return True
                 else:
-                    _LOGGER.error("Login failed with status code: %d", response.status)
-                    return False
-        except Exception as e:
-            _LOGGER.error("Unexpected error during login: %s", e)
-            return False
+                    _LOGGER.info("Access token potentially expired, refreshing")
+
+            login_url = f"{MIRAIE_AUTH_API_BASE_URL}/userManagement/login"
+            _LOGGER.debug("Attempting to login to %s", login_url)
+
+            payload = {
+                "clientId": "PBcMcfG19njNCL8AOgvRzIC8AjQa",
+                "password": self.password,
+                "scope": self._get_scope(),
+            }
+
+            if "@" in self.user_id:
+                payload["email"] = self.user_id
+            else:
+                payload["mobile"] = self.user_id
+
+            try:
+                async with asyncio.timeout(API_TIMEOUT):
+                    async with self.http_session.post(
+                        login_url, json=payload
+                    ) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            self.access_token = data.get("accessToken")
+                            self._last_token_refresh = time.time()
+                            _LOGGER.info("Login successful")
+                            return True
+                        else:
+                            _LOGGER.error(
+                                "Login failed with status code: %d", response.status
+                            )
+                            return False
+            except TimeoutError:
+                _LOGGER.error("Login request timed out")
+                return False
+            except Exception as e:
+                _LOGGER.error("Unexpected error during login: %s", e)
+                return False
 
     async def fetch_home_details(self):
         """Fetch the home details registered with the user's MirAIe platform account.
@@ -110,31 +132,45 @@ class PanasonicMirAIeAPI:
             bool: True if home details were successfully fetched, False otherwise.
 
         """
-        if not self.access_token:
-            _LOGGER.error("No access token available. Please login first.")
+        if not self.access_token and not await self.login():
+            _LOGGER.error("No access token available and login failed")
             return False
 
         homes_url = f"{MIRAIE_APP_API_BASE_URL}/homeManagement/homes"
         headers = {"Authorization": f"Bearer {self.access_token}"}
-        _LOGGER.debug("Home details API: %s , headers: %s", homes_url, headers)
+        _LOGGER.debug("Home details API: %s", homes_url)
 
         try:
-            async with self.http_session.get(homes_url, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    _LOGGER.debug("Home details response: %s", data)
-                    if data:
-                        self.home_id = data[0].get("homeId")
-                        _LOGGER.debug("Home ID: %s", self.home_id)
-                        return True
+            async with asyncio.timeout(API_TIMEOUT):
+                async with self.http_session.get(
+                    homes_url, headers=headers
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if data:
+                            self.home_id = data[0].get("homeId")
+                            _LOGGER.debug("Home ID: %s", self.home_id)
+                            return True
+                        else:
+                            _LOGGER.error("No home details found")
+                            return False
+                    elif response.status == 401:
+                        _LOGGER.warning(
+                            "Access token expired, attempting to login again"
+                        )
+                        if await self.login():
+                            return await self.fetch_home_details()
+                        else:
+                            return False
                     else:
-                        _LOGGER.error("No home details found")
+                        _LOGGER.error(
+                            "Failed to fetch home details. Status code: %d",
+                            response.status,
+                        )
                         return False
-                else:
-                    _LOGGER.error(
-                        "Failed to fetch home details. Status code: %d", response.status
-                    )
-                    return False
+        except TimeoutError:
+            _LOGGER.error("Home details request timed out")
+            return False
         except Exception as e:
             _LOGGER.error("Error fetching home details: %s", e)
             return False
@@ -153,11 +189,7 @@ class PanasonicMirAIeAPI:
             return False
 
         try:
-            _LOGGER.debug(
-                "connect_mqtt home_id: %s , access_token: %s",
-                self.home_id,
-                self.access_token,
-            )
+            _LOGGER.debug("Connecting to MQTT with home_id: %s", self.home_id)
             connected = await self.mqtt_handler.connect_with_retry(
                 self.home_id, self.access_token
             )
@@ -178,14 +210,26 @@ class PanasonicMirAIeAPI:
         await self.mqtt_handler.disconnect()
         self.access_token = None
         self.home_id = None
+        self._last_token_refresh = 0
 
-    async def get_devices(self):
+    async def get_devices(self):  # noqa: C901
         """Fetch all devices associated with the user's account.
 
         Returns:
             list: A list of dictionaries containing device information.
 
         """
+        # Check if we have a recent cache of devices
+        current_time = time.time()
+        if (
+            self._devices_cache
+            and (current_time - self._devices_cache_time) < self._devices_cache_ttl
+        ):
+            _LOGGER.debug(
+                "Using cached device list (%d devices)", len(self._devices_cache)
+            )
+            return self._devices_cache
+
         if not self.access_token and not await self.login():
             return []
 
@@ -193,32 +237,51 @@ class PanasonicMirAIeAPI:
         headers = {"Authorization": f"Bearer {self.access_token}"}
 
         try:
-            async with self.http_session.get(homes_url, headers=headers) as response:
-                if response.status == 200:
-                    homes = await response.json()
-                    devices = []
-                    for home in homes:
-                        for space in home.get("spaces", []):
-                            for device in space.get("devices", []):
-                                devices.append(
-                                    {
-                                        "deviceId": device.get("deviceId"),
-                                        "deviceName": device.get("deviceName"),
-                                        "topic": device.get("topic", []),
-                                        "homeId": home.get("homeId"),
-                                        "homeName": home.get("homeName"),
-                                        "spaceId": space.get("spaceId"),
-                                        "spaceName": space.get("spaceName"),
-                                        "spaceType": space.get("spaceType"),
-                                    }
-                                )
-                    _LOGGER.debug("Retrieved %d devices", len(devices))
-                    return devices
-                else:
-                    _LOGGER.error(
-                        "Failed to fetch devices. Status code: %d", response.status
-                    )
-                    return []
+            async with asyncio.timeout(API_TIMEOUT):
+                async with self.http_session.get(
+                    homes_url, headers=headers
+                ) as response:
+                    if response.status == 200:
+                        homes = await response.json()
+                        devices = []
+                        for home in homes:
+                            for space in home.get("spaces", []):
+                                for device in space.get("devices", []):
+                                    devices.append(
+                                        {
+                                            "deviceId": device.get("deviceId"),
+                                            "deviceName": device.get("deviceName"),
+                                            "topic": device.get("topic", []),
+                                            "homeId": home.get("homeId"),
+                                            "homeName": home.get("homeName"),
+                                            "spaceId": space.get("spaceId"),
+                                            "spaceName": space.get("spaceName"),
+                                            "spaceType": space.get("spaceType"),
+                                        }
+                                    )
+                        _LOGGER.debug("Retrieved %d devices", len(devices))
+
+                        # Update the cache
+                        self._devices_cache = devices
+                        self._devices_cache_time = current_time
+
+                        return devices
+                    elif response.status == 401:
+                        _LOGGER.warning(
+                            "Access token expired, attempting to login again"
+                        )
+                        if await self.login():
+                            return await self.get_devices()
+                        else:
+                            return []
+                    else:
+                        _LOGGER.error(
+                            "Failed to fetch devices. Status code: %d", response.status
+                        )
+                        return []
+        except TimeoutError:
+            _LOGGER.error("Get devices request timed out")
+            return []
         except Exception as e:
             _LOGGER.error("Error fetching devices: %s", e)
             return []
@@ -246,24 +309,31 @@ class PanasonicMirAIeAPI:
         }
 
         try:
-            async with self.http_session.get(url, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    _LOGGER.debug("Received device state for %s: %s", device_id, data)
-                    return self._parse_device_state(data)
-                elif response.status == 401:
-                    _LOGGER.warning("Access token expired, attempting to login again")
-                    if await self.login():
-                        return await self.get_device_state(device_id)
+            async with asyncio.timeout(API_TIMEOUT):
+                async with self.http_session.get(url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        _LOGGER.debug("Received device state for %s", device_id)
+                        return self._parse_device_state(data)
+                    elif response.status == 401:
+                        _LOGGER.warning(
+                            "Access token expired, attempting to login again"
+                        )
+                        if await self.login():
+                            return await self.get_device_state(device_id)
+                        else:
+                            raise HomeAssistantError("Failed to refresh access token")
                     else:
-                        raise HomeAssistantError("Failed to refresh access token")
-                else:
-                    _LOGGER.error(
-                        "Failed to fetch device state. Status code: %d", response.status
-                    )
-                    raise HomeAssistantError(
-                        f"Failed to fetch device state. Status code: {response.status}"
-                    )
+                        _LOGGER.error(
+                            "Failed to fetch device state. Status code: %d",
+                            response.status,
+                        )
+                        raise HomeAssistantError(
+                            f"Failed to fetch device state. Status code: {response.status}"
+                        )
+        except TimeoutError:
+            _LOGGER.error("Device state request for %s timed out", device_id)
+            raise HomeAssistantError(f"Timeout fetching device state for {device_id}")
         except Exception as e:
             _LOGGER.error("Error fetching device state: %s", e)
             raise HomeAssistantError(f"Error fetching device state: {e}")
@@ -296,7 +366,6 @@ class PanasonicMirAIeAPI:
             "filterDustLevel": data.get("filterDustLevel"),
             "filterCleaningRequired": data.get("filterCleaningRequired"),
         }
-        _LOGGER.debug("Parsed device state: %s", parsed_state)
         return parsed_state
 
     async def set_power(self, device_topic: str, state: str):
@@ -309,7 +378,7 @@ class PanasonicMirAIeAPI:
         """
         payload = self._get_base_payload()
         payload.update({"ps": state})
-        await self.mqtt_handler.publish(f"{device_topic}/control", payload)
+        return await self.mqtt_handler.publish(f"{device_topic}/control", payload)
 
     async def set_mode(self, device_topic: str, mode: str):
         """Set the operation mode of a device.
@@ -321,7 +390,7 @@ class PanasonicMirAIeAPI:
         """
         payload = self._get_base_payload()
         payload.update({"acmd": mode})
-        await self.mqtt_handler.publish(f"{device_topic}/control", payload)
+        return await self.mqtt_handler.publish(f"{device_topic}/control", payload)
 
     async def set_temperature(self, device_topic: str, temperature: float):
         """Set the target temperature of a device.
@@ -333,7 +402,7 @@ class PanasonicMirAIeAPI:
         """
         payload = self._get_base_payload()
         payload.update({"actmp": str(temperature)})
-        await self.mqtt_handler.publish(f"{device_topic}/control", payload)
+        return await self.mqtt_handler.publish(f"{device_topic}/control", payload)
 
     async def set_fan_mode(self, device_topic: str, fan_mode: str):
         """Set the fan mode of a device.
@@ -345,7 +414,7 @@ class PanasonicMirAIeAPI:
         """
         payload = self._get_base_payload()
         payload.update({"acfs": fan_mode})
-        await self.mqtt_handler.publish(f"{device_topic}/control", payload)
+        return await self.mqtt_handler.publish(f"{device_topic}/control", payload)
 
     async def set_swing_mode(self, device_topic: str, swing_mode: str):
         """Set the swing mode of a device.
@@ -357,7 +426,7 @@ class PanasonicMirAIeAPI:
         """
         payload = self._get_base_payload()
         payload.update({"acvs": swing_mode})
-        await self.mqtt_handler.publish(f"{device_topic}/control", payload)
+        return await self.mqtt_handler.publish(f"{device_topic}/control", payload)
 
     def _get_base_payload(self):
         """Get the base payload for MQTT messages.

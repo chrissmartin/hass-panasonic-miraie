@@ -6,11 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Chriss Martin", email = "thechrissmartin@gmail.com" }]
-dependencies = [
-    "asyncio-mqtt==0.16.2",
-    "async_timeout>=4.0.3",
-    "voluptuous>=0.15.2",
-]
+dependencies = ["aiomqtt>=2.0.0", "async_timeout>=4.0.3", "voluptuous>=0.15.2"]
 
 [project.urls]
 "Homepage" = "https://github.com/chrissmartin/hass-panasonic-miraie"
