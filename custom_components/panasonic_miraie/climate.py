@@ -391,7 +391,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
                     success = True
 
                     # Wait a short time for state update to arrive via MQTT
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(2)
 
                     # If we haven't received an MQTT update after the wait,
                     # request a state update directly
