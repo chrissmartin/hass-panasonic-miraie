@@ -84,65 +84,10 @@ class MQTTHandler:
         )
 
         try:
-            tls_context = None
-            if MIRAIE_BROKER_USE_SSL:
-                tls_context = await self.hass.async_add_executor_job(
-                    ssl.create_default_context
-                )
-
-            # Cancel existing client if there is one
-            if self.client:
-                with contextlib.suppress(Exception):
-                    await self.client.__aexit__(None, None, None)
-                self.client = None
-
-            self.client = Client(
-                hostname=MIRAIE_BROKER_HOST,
-                port=MIRAIE_BROKER_PORT,
-                username=username,
-                password=password,
-                identifier=self._client_id,
-                tls_context=tls_context,
-                keepalive=MQTT_KEEPALIVE,
-            )
-
-            # Set a timeout for the connection
-            try:
-                async with asyncio.timeout(MQTT_CONNECTION_TIMEOUT):
-                    await self.client.__aenter__()
-            except TimeoutError:
-                _LOGGER.error("Timeout connecting to MQTT broker")
-                self._pending_reconnect = False
-                return False
-
-            self.connected.set()
-            self._last_message_time = time.time()
-            self._retry_count = 0
-            _LOGGER.info("Connected to Panasonic MirAIe MQTT broker")
-
-            # Re-subscribe to topics if reconnecting
-            if self.subscriptions:
-                _LOGGER.debug("Resubscribing to %d topics", len(self.subscriptions))
-                for topic in self.subscriptions:
-                    await self.client.subscribe(topic)
-
-            # Start the message loop
-            if self._mqtt_task:
-                self._mqtt_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await self._mqtt_task
-
-            self._mqtt_task = asyncio.create_task(self._message_loop())
-            self._pending_reconnect = False
-
-            # Start the connection monitor if not already running
-            if not self._connection_monitor:
-                self._connection_monitor = async_track_time_interval(
-                    self.hass,
-                    self._check_connection_status,
-                    timedelta(seconds=MQTT_RECONNECT_INTERVAL),
-                )
-
+            tls_context = await self._create_tls_context()
+            await self._cleanup_existing_client()
+            await self._create_and_connect_client(username, password, tls_context)
+            await self._setup_after_connection()
             return True
 
         except MqttError as error:
@@ -155,6 +100,73 @@ class MQTTHandler:
             self.connected.clear()
             self._pending_reconnect = False
             return False
+
+    async def _create_tls_context(self):
+        """Create TLS context for secure MQTT connection."""
+        tls_context = None
+        if MIRAIE_BROKER_USE_SSL:
+            tls_context = await self.hass.async_add_executor_job(
+                ssl.create_default_context
+            )
+        return tls_context
+
+    async def _cleanup_existing_client(self):
+        """Clean up existing MQTT client if present."""
+        if self.client:
+            with contextlib.suppress(Exception):
+                await self.client.__aexit__(None, None, None)
+            self.client = None
+
+    async def _create_and_connect_client(self, username, password, tls_context):
+        """Create and connect the MQTT client."""
+        self.client = Client(
+            hostname=MIRAIE_BROKER_HOST,
+            port=MIRAIE_BROKER_PORT,
+            username=username,
+            password=password,
+            identifier=self._client_id,
+            tls_context=tls_context,
+            keepalive=MQTT_KEEPALIVE,
+        )
+
+        # Set a timeout for the connection
+        try:
+            async with asyncio.timeout(MQTT_CONNECTION_TIMEOUT):
+                await self.client.__aenter__()
+        except TimeoutError:
+            _LOGGER.error("Timeout connecting to MQTT broker")
+            self._pending_reconnect = False
+            raise
+
+    async def _setup_after_connection(self):
+        """Set up tasks after successful MQTT connection."""
+        self.connected.set()
+        self._last_message_time = time.time()
+        self._retry_count = 0
+        _LOGGER.info("Connected to Panasonic MirAIe MQTT broker")
+
+        # Re-subscribe to topics if reconnecting
+        if self.subscriptions:
+            _LOGGER.debug("Resubscribing to %d topics", len(self.subscriptions))
+            for topic in self.subscriptions:
+                await self.client.subscribe(topic)
+
+        # Start the message loop
+        if self._mqtt_task:
+            self._mqtt_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._mqtt_task
+
+        self._mqtt_task = asyncio.create_task(self._message_loop())
+        self._pending_reconnect = False
+
+        # Start the connection monitor if not already running
+        if not self._connection_monitor:
+            self._connection_monitor = async_track_time_interval(
+                self.hass,
+                self._check_connection_status,
+                timedelta(seconds=MQTT_RECONNECT_INTERVAL),
+            )
 
     async def _check_connection_status(self, *_) -> None:
         """Periodically check the connection status and reconnect if needed."""
