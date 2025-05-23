@@ -131,6 +131,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
     _attr_hvac_modes = list(HVAC_MODE_MAP.values())
     _attr_fan_modes = list(FAN_MODE_MAP.values())
     _attr_swing_modes = list(SWING_MODE_MAP.keys())
+    _attr_preset_modes = ["none", "nanoe", "powerful", "economy", "nanoe_powerful", "nanoe_economy"]
     _update_lock = asyncio.Lock()
     _command_lock = asyncio.Lock()
     _last_update_success = False
@@ -158,10 +159,12 @@ class PanasonicMirAIeClimate(ClimateEntity):
             | ClimateEntityFeature.SWING_MODE
             | ClimateEntityFeature.TURN_ON
             | ClimateEntityFeature.TURN_OFF
+            | ClimateEntityFeature.PRESET_MODE
         )
         self._attr_available = True  # Start optimistically
         self._mqtt_state_received_after_command = False
         self._command_time = 0
+        self._attr_preset_mode = "none"
 
         _LOGGER.debug(
             "Initialized climate entity: %s with topic %s",
@@ -328,10 +331,29 @@ class PanasonicMirAIeClimate(ClimateEntity):
             else:
                 self._attr_swing_mode = SWING_OFF
 
+            # Get the status of special modes
+            nanoe_active = payload.get("acng") == "on"
+            powerful_active = payload.get("acpm") == "on"
+            economy_active = payload.get("acec") == "on"
+
+            # Set the preset mode based on active features
+            if nanoe_active and powerful_active:
+                self._attr_preset_mode = "nanoe_powerful"
+            elif nanoe_active and economy_active:
+                self._attr_preset_mode = "nanoe_economy"
+            elif nanoe_active:
+                self._attr_preset_mode = "nanoe"
+            elif powerful_active:
+                self._attr_preset_mode = "powerful"
+            elif economy_active:
+                self._attr_preset_mode = "economy"
+            else:
+                self._attr_preset_mode = "none"
+
             self._attr_extra_state_attributes = {
-                "nanoe_g": payload.get("acng") == "on",
-                "powerful_mode": payload.get("acpm") == "on",
-                "economy_mode": payload.get("acec") == "on",
+                "nanoe_g": nanoe_active,
+                "powerful_mode": powerful_active,
+                "economy_mode": economy_active,
                 "filter_dust_level": payload.get("filterDustLevel"),
                 "filter_cleaning_required": payload.get("filterCleaningRequired"),
                 "errors": payload.get("errors"),
@@ -551,6 +573,48 @@ class PanasonicMirAIeClimate(ClimateEntity):
                 )
                 # Schedule an update to get the correct state
                 self.async_schedule_update_ha_state(True)
+
+    @_track_command
+    async def async_set_preset_mode(self, preset_mode: str) -> None:
+        """Set new preset mode.
+
+        Args:
+            preset_mode: The new preset mode to set.
+
+        Returns:
+            None
+        """
+        _LOGGER.debug("Setting preset mode for %s to %s", self._attr_name, preset_mode)
+
+        # Update state optimistically
+        self._attr_preset_mode = preset_mode
+        self.async_write_ha_state()
+
+        # Determine which special modes to enable/disable
+        nanoe_active = "nanoe" in preset_mode
+        powerful_active = "powerful" in preset_mode
+        economy_active = "economy" in preset_mode
+
+        # Can't have both powerful and economy active at once
+        if powerful_active and economy_active:
+            _LOGGER.warning("Cannot activate both powerful and economy modes. Defaulting to powerful.")
+            economy_active = False
+
+        # Send commands to update device state
+        success = True
+        if success and await self._send_command(self._api.set_nanoe, self._device_topic, nanoe_active) is False:
+            success = False
+        if success and await self._send_command(self._api.set_powerful_mode, self._device_topic, powerful_active) is False:
+            success = False
+        if success and await self._send_command(self._api.set_economy_mode, self._device_topic, economy_active) is False:
+            success = False
+
+        if not success:
+            _LOGGER.warning(
+                "Failed to set preset mode for %s after retries", self._attr_name
+            )
+            # Schedule an update to get the correct state
+            self.async_schedule_update_ha_state(True)
 
     @property
     def device_info(self):

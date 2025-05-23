@@ -13,9 +13,9 @@ This integration allows you to control your Panasonic MirAIe air conditioners th
 - Control swing mode (Off, Vertical, Horizontal, Both)
 - Monitor current room temperature
 - View and control additional features:
-  - NanoeTM X (On/Off) - controllable via service
-  - Powerful mode (On/Off) - controllable via service
-  - Economy mode (On/Off) - controllable via service
+  - NanoeTM X (On/Off) - controllable via preset modes and service
+  - Powerful mode (On/Off) - controllable via preset modes and service
+  - Economy mode (On/Off) - controllable via preset modes and service
 - Monitor filter status:
   - Dust level
   - Cleaning required indicator
@@ -126,7 +126,8 @@ Each MirAIe device will have the following attributes:
 - `hvac_mode`: The current operation mode (off, auto, cool, heat, dry, fan_only)
 - `fan_mode`: The current fan speed (auto, low, medium, high, quiet)
 - `swing_mode`: The current swing setting (off, vertical, horizontal, both)
-- `nanoe_x`: Status of NanoeTM X feature (on/off)
+- `preset_mode`: The current preset mode (none, nanoe, powerful, economy, nanoe_powerful, nanoe_economy)
+- `nanoe_g`: Status of NanoeTM X feature (on/off)
 - `powerful_mode`: Status of Powerful mode (on/off)
 - `economy_mode`: Status of Economy mode (on/off)
 - `filter_dust_level`: Current dust level in the filter
@@ -134,9 +135,22 @@ Each MirAIe device will have the following attributes:
 - `errors`: Any current device errors
 - `warnings`: Any current device warnings
 
+### Preset Modes
+
+You can control the special features through preset modes in the climate entity UI:
+
+- `none`: All special features disabled
+- `nanoe`: Only NanoeTM X feature enabled
+- `powerful`: Only Powerful mode enabled
+- `economy`: Only Economy mode enabled
+- `nanoe_powerful`: Both NanoeTM X and Powerful mode enabled
+- `nanoe_economy`: Both NanoeTM X and Economy mode enabled
+
+Note: Powerful mode and Economy mode cannot be active simultaneously, so attempting to set both will prioritize Powerful mode.
+
 ### Services
 
-The integration provides the following services:
+The integration also provides the following services for direct control:
 
 #### Set NanoeTM X Feature
 
