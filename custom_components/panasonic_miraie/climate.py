@@ -201,6 +201,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
             "powerful_mode": False,
             "economy_mode": False,
             "clean_mode": False,
+            "converti7_mode": None,
             "filter_dust_level": None,
             "filter_cleaning_required": None,
             "errors": None,
