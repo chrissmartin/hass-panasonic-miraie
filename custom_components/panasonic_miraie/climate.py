@@ -390,13 +390,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
             cnv_value = payload.get("cnv")
             accm_value = payload.get("accm")
             converti7_value = str(cnv_value) if cnv_value is not None else accm_value
-            _LOGGER.debug(
-                "Received Converti7 mode value for %s: cnv=%s, accm=%s (payload keys: %s)",
-                self._attr_name,
-                cnv_value,
-                accm_value,
-                list(payload.keys()),
-            )
+
             self._attr_extra_state_attributes["converti7_mode"] = converti7_value
 
             CONVERTI7_MAP_FROM_PAYLOAD = {
@@ -412,32 +406,14 @@ class PanasonicMirAIeClimate(ClimateEntity):
 
             if converti7_value in CONVERTI7_MAP_FROM_PAYLOAD:
                 converti7_preset = CONVERTI7_MAP_FROM_PAYLOAD[converti7_value]
-                _LOGGER.debug(
-                    "Mapped Converti7 value %s to preset %s for %s",
-                    converti7_value,
-                    converti7_preset,
-                    self._attr_name,
-                )
+
                 # Only set Converti7 preset if it's active (not OFF)
                 # Never set to PRESET_CONVERTI7_OFF as that duplicates PRESET_NONE functionality
                 if converti7_preset != PRESET_CONVERTI7_OFF:
-                    _LOGGER.debug(
-                        "Setting preset_mode for %s to %s based on converti7_value %s",
-                        self._attr_name,
-                        converti7_preset,
-                        converti7_value,
-                    )
                     self._attr_preset_mode = converti7_preset
                 elif self._attr_preset_mode == PRESET_CONVERTI7_OFF:
                     # If currently showing PRESET_CONVERTI7_OFF, set to PRESET_NONE instead
                     self._attr_preset_mode = PRESET_NONE
-            else:
-                _LOGGER.debug(
-                    "Converti7 value %s not found in mapping for %s. Available mappings: %s",
-                    converti7_value,
-                    self._attr_name,
-                    CONVERTI7_MAP_FROM_PAYLOAD,
-                )
 
             # Update entity attributes
             self._attr_extra_state_attributes.update(
@@ -453,23 +429,6 @@ class PanasonicMirAIeClimate(ClimateEntity):
                     "last_update_success": self._last_update_success,
                     # "converti7_mode" is already updated directly
                 }
-            )
-
-            _LOGGER.debug(
-                "Current preset mode for %s: %s, Converti7 mode in attributes: %s",
-                self._attr_name,
-                self._attr_preset_mode,
-                self._attr_extra_state_attributes.get("converti7_mode"),
-            )
-
-            _LOGGER.debug(
-                "Updated state for %s: HVAC Mode - %s, Fan Mode - %s, Swing Mode - %s, Temperature - %s, Preset Mode - %s",
-                self._attr_name,
-                self._attr_hvac_mode,
-                self._attr_fan_mode,
-                self._attr_swing_mode,
-                self._attr_target_temperature,
-                self._attr_preset_mode,
             )
 
             # Mark entity as available as we received a valid state update
@@ -712,11 +671,6 @@ class PanasonicMirAIeClimate(ClimateEntity):
         success = True  # Initialize success to True
 
         if preset_mode in CONVERTI7_TO_PAYLOAD_MAP:
-            _LOGGER.debug(
-                "Attempting to set Converti7 mode for %s to %s",
-                self._attr_name,
-                preset_mode,
-            )
             if self.hvac_mode != HVACMode.COOL:
                 _LOGGER.warning(
                     "Converti7 can only be used in Cool mode. Current mode: %s",
@@ -727,19 +681,9 @@ class PanasonicMirAIeClimate(ClimateEntity):
                 return
 
             numeric_value_str = CONVERTI7_TO_PAYLOAD_MAP[preset_mode]
-            _LOGGER.debug(
-                "Setting Converti7 mode for %s: mapped preset %s to value %s",
-                self._attr_name,
-                preset_mode,
-                numeric_value_str,
-            )
+
             success = await self._send_command(
                 self._api.set_converti7_mode, self._device_topic, numeric_value_str
-            )
-            _LOGGER.debug(
-                "Converti7 command result for %s: %s",
-                self._attr_name,
-                "Success" if success else "Failed",
             )
 
             if success:
@@ -771,13 +715,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
                     "Failed to set Converti7 mode for %s after retries", self._attr_name
                 )
                 self.async_schedule_update_ha_state(True)
-            else:
-                _LOGGER.debug(
-                    "Successfully set Converti7 mode for %s to %s (value: %s)",
-                    self._attr_name,
-                    preset_mode,
-                    numeric_value_str,
-                )
+
             return  # Processed Converti7, so exit
 
         # Handle setting to PRESET_NONE or PRESET_CONVERTI7_OFF
@@ -800,18 +738,8 @@ class PanasonicMirAIeClimate(ClimateEntity):
             self._attr_extra_state_attributes.get("converti7_mode", "0")
         )
         if current_converti7 != "0" and current_converti7 != "None":
-            _LOGGER.debug(
-                "Turning off Converti7 mode as other preset (%s) is selected. Current converti7_mode: %s",
-                preset_mode,
-                current_converti7,
-            )
             converti7_result = await self._send_command(
                 self._api.set_converti7_mode, self._device_topic, "0"
-            )
-            _LOGGER.debug(
-                "Result of turning off Converti7 for %s: %s",
-                self._attr_name,
-                "Success" if converti7_result else "Failed",
             )
             if converti7_result is False:
                 success = False  # Log if this fails but continue with other modes

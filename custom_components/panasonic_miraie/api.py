@@ -354,13 +354,10 @@ class PanasonicMirAIeAPI:
             dict: A dictionary containing the parsed device state.
 
         """
-        _LOGGER.debug("Raw device state data structure: %s", list(data.keys()))
-
         # Map Converti7 values - Use 'cnv' field for Converti7 mode
         # Convert to string to match MQTT format
         cnv_value = data.get("cnv")
         cnv_str_value = str(cnv_value) if cnv_value is not None else None
-
         parsed_state = {
             "onlineStatus": data.get("onlineStatus"),
             "rmtmp": data.get("rmtmp"),
@@ -501,9 +498,6 @@ class PanasonicMirAIeAPI:
                         (e.g., "110" for HC, "100" for FC, "90", "80", ..., "0" for Off)
 
         """
-        _LOGGER.debug(
-            f"Setting Converti7 mode: device_topic={device_topic}, mode_value={mode_value} (type: {type(mode_value)})"
-        )
         payload = self._get_base_payload()
 
         # Turn off other modes when setting Converti7
@@ -517,9 +511,7 @@ class PanasonicMirAIeAPI:
             }
         )
 
-        _LOGGER.debug(f"Converti7 payload: {payload}")
         result = await self.mqtt_handler.publish(f"{device_topic}/control", payload)
-        _LOGGER.debug(f"Converti7 command result: {result}")
         return result
 
     def _get_base_payload(self):
