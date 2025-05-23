@@ -16,6 +16,8 @@ _LOGGER = logging.getLogger(__name__)
 SERVICE_SET_NANOE = "set_nanoe"
 SERVICE_SET_POWERFUL_MODE = "set_powerful_mode"
 SERVICE_SET_ECONOMY_MODE = "set_economy_mode"
+SERVICE_SET_CLEAN_MODE = "set_clean_mode"
+SERVICE_SET_CONVERTI7_MODE = "set_converti7_mode"
 
 # Common validation schema for all services with state parameter
 SERVICE_BASE_SCHEMA = vol.Schema(
@@ -24,10 +26,19 @@ SERVICE_BASE_SCHEMA = vol.Schema(
     }
 )
 
+# Schema for converti7 mode service with mode_value parameter
+SERVICE_CONVERTI7_SCHEMA = vol.Schema(
+    {
+        vol.Required("mode_value"): cv.string,
+    }
+)
+
 SERVICE_SCHEMAS = {
     SERVICE_SET_NANOE: SERVICE_BASE_SCHEMA,
     SERVICE_SET_POWERFUL_MODE: SERVICE_BASE_SCHEMA,
     SERVICE_SET_ECONOMY_MODE: SERVICE_BASE_SCHEMA,
+    SERVICE_SET_CLEAN_MODE: SERVICE_BASE_SCHEMA,
+    SERVICE_SET_CONVERTI7_MODE: SERVICE_CONVERTI7_SCHEMA,
 }
 
 
@@ -47,6 +58,16 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     async def async_handle_set_economy_mode(service_call: ServiceCall) -> None:
         """Handle set economy mode service call."""
         await _async_set_special_mode(hass, service_call, "set_economy_mode")
+
+    async def async_handle_set_clean_mode(service_call: ServiceCall) -> None:
+        """Handle set clean mode service call."""
+        await _async_set_special_mode(hass, service_call, "set_clean_mode")
+
+    async def async_handle_set_converti7_mode(service_call: ServiceCall) -> None:
+        """Handle set converti7 mode service call."""
+        await _async_set_special_mode(
+            hass, service_call, "set_converti7_mode", "mode_value"
+        )
 
     hass.services.async_register(
         DOMAIN,
@@ -69,6 +90,20 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         schema=SERVICE_SCHEMAS[SERVICE_SET_ECONOMY_MODE],
     )
 
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_CLEAN_MODE,
+        async_handle_set_clean_mode,
+        schema=SERVICE_SCHEMAS[SERVICE_SET_CLEAN_MODE],
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_CONVERTI7_MODE,
+        async_handle_set_converti7_mode,
+        schema=SERVICE_SCHEMAS[SERVICE_SET_CONVERTI7_MODE],
+    )
+
 
 async def async_unload_services(hass: HomeAssistant) -> None:
     """Unload Panasonic MirAIe services."""
@@ -78,13 +113,18 @@ async def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_SET_NANOE)
     hass.services.async_remove(DOMAIN, SERVICE_SET_POWERFUL_MODE)
     hass.services.async_remove(DOMAIN, SERVICE_SET_ECONOMY_MODE)
+    hass.services.async_remove(DOMAIN, SERVICE_SET_CLEAN_MODE)
+    hass.services.async_remove(DOMAIN, SERVICE_SET_CONVERTI7_MODE)
 
 
 async def _async_set_special_mode(  # noqa: C901
-    hass: HomeAssistant, service_call: ServiceCall, api_method: str
+    hass: HomeAssistant,
+    service_call: ServiceCall,
+    api_method: str,
+    param_name: str = "state",
 ) -> None:
     """Handle special mode service call."""
-    state = service_call.data["state"]
+    param_value = service_call.data[param_name]
     target_entities = service_call.target.get("entity_id", [])
 
     if not target_entities:
@@ -141,11 +181,12 @@ async def _async_set_special_mode(  # noqa: C901
                     continue
 
                 api_func = getattr(api, api_method)
-                await api_func(topic, state)
+                await api_func(topic, param_value)
                 _LOGGER.debug(
-                    "Successfully called %s with state %s for device %s",
+                    "Successfully called %s with %s %s for device %s",
                     api_method,
-                    state,
+                    param_name,
+                    param_value,
                     device_id,
                 )
                 found_device = True

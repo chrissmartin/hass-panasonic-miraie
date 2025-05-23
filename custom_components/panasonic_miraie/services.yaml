@@ -45,3 +45,35 @@ set_economy_mode:
       required: true
       selector:
         boolean:
+
+set_clean_mode:
+  name: Set clean mode
+  description: Turn on or off the clean mode feature of a Panasonic MirAIe air conditioner.
+  target:
+    entity:
+      integration: panasonic_miraie
+      domain: climate
+  fields:
+    state:
+      name: State
+      description: Turn on or off clean mode.
+      example: true
+      required: true
+      selector:
+        boolean:
+
+set_converti7_mode:
+  name: Set Converti7 mode
+  description: Set the Converti7 mode of a Panasonic MirAIe air conditioner.
+  target:
+    entity:
+      integration: panasonic_miraie
+      domain: climate
+  fields:
+    mode_value:
+      name: Mode Value
+      description: The string representation of the numeric value for the Converti7 mode (e.g., "110" for HC, "100" for FC, "90", "80", ..., "0" for Off).
+      example: "110"
+      required: true
+      selector:
+        text:
