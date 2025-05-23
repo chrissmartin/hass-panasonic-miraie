@@ -313,8 +313,14 @@ class PanasonicMirAIeAPI:
                 async with self.http_session.get(url, headers=headers) as response:
                     if response.status == 200:
                         data = await response.json()
-                        _LOGGER.debug("Received device state for %s", device_id)
-                        return self._parse_device_state(data)
+                        _LOGGER.debug(
+                            "Received device state for %s: %s", device_id, data
+                        )
+                        parsed_state = self._parse_device_state(data)
+                        _LOGGER.debug(
+                            "Parsed device state for %s: %s", device_id, parsed_state
+                        )
+                        return parsed_state
                     elif response.status == 401:
                         _LOGGER.warning(
                             "Access token expired, attempting to login again"
@@ -348,6 +354,13 @@ class PanasonicMirAIeAPI:
             dict: A dictionary containing the parsed device state.
 
         """
+        _LOGGER.debug("Raw device state data structure: %s", list(data.keys()))
+
+        # Map Converti7 values - Use 'cnv' field for Converti7 mode
+        # Convert to string to match MQTT format
+        cnv_value = data.get("cnv")
+        cnv_str_value = str(cnv_value) if cnv_value is not None else None
+
         parsed_state = {
             "onlineStatus": data.get("onlineStatus"),
             "rmtmp": data.get("rmtmp"),
@@ -360,6 +373,9 @@ class PanasonicMirAIeAPI:
             "acng": data.get("acng"),
             "acpm": data.get("acpm"),
             "acec": data.get("acec"),
+            "acem": data.get("acem"),
+            "cnv": cnv_value,  # Include raw value
+            "accm": cnv_str_value,  # Use string value for compatibility
             "ts": data.get("ts"),
             "errors": data.get("errors"),
             "warnings": data.get("warnings"),
@@ -461,8 +477,50 @@ class PanasonicMirAIeAPI:
 
         """
         payload = self._get_base_payload()
+        payload.update({"acem": "on" if state else "off"})
+        return await self.mqtt_handler.publish(f"{device_topic}/control", payload)
+
+    async def set_clean_mode(self, device_topic: str, state: bool):
+        """Set the clean mode feature of a device.
+
+        Args:
+            device_topic: The MQTT topic for the device.
+            state: The desired state (True for ON, False for OFF).
+
+        """
+        payload = self._get_base_payload()
         payload.update({"acec": "on" if state else "off"})
         return await self.mqtt_handler.publish(f"{device_topic}/control", payload)
+
+    async def set_converti7_mode(self, device_topic: str, mode_value: str):
+        """Set the Converti7 mode of a device.
+
+        Args:
+            device_topic: The MQTT topic for the device.
+            mode_value: The string representation of the numeric value for the Converti7 mode.
+                        (e.g., "110" for HC, "100" for FC, "90", "80", ..., "0" for Off)
+
+        """
+        _LOGGER.debug(
+            f"Setting Converti7 mode: device_topic={device_topic}, mode_value={mode_value} (type: {type(mode_value)})"
+        )
+        payload = self._get_base_payload()
+
+        # Turn off other modes when setting Converti7
+        payload.update(
+            {
+                "acpm": "off",  # Turn off powerful mode
+                "acec": "off",  # Turn off clean mode
+                "acem": "off",  # Turn off economy mode
+                "acng": "off",  # Turn off nanoe
+                "cnv": int(mode_value) if mode_value.isdigit() else mode_value,
+            }
+        )
+
+        _LOGGER.debug(f"Converti7 payload: {payload}")
+        result = await self.mqtt_handler.publish(f"{device_topic}/control", payload)
+        _LOGGER.debug(f"Converti7 command result: {result}")
+        return result
 
     def _get_base_payload(self):
         """Get the base payload for MQTT messages.

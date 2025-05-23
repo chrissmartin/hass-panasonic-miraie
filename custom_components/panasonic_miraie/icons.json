@@ -9,8 +9,17 @@
               "nanoe": "mdi:air-purifier",
               "powerful": "mdi:rocket-launch",
               "economy": "mdi:leaf",
+              "clean": "mdi:broom",
               "nanoe_powerful": "mdi:weather-windy",
-              "nanoe_economy": "mdi:leaf-circle-outline"
+              "nanoe_economy": "mdi:leaf-circle-outline",
+              "converti7_hc": "mdi:arrow-up-bold-hexagon-outline",
+              "converti7_fc": "mdi:arrow-up-bold-box-outline",
+              "converti7_90": "mdi:fraction-one-half",
+              "converti7_80": "mdi:fraction-one-half",
+              "converti7_70": "mdi:fraction-one-half",
+              "converti7_55": "mdi:fraction-one-half",
+              "converti7_40": "mdi:fraction-one-half",
+              "converti7_off": "mdi:power-plug-off-outline"
             }
           }
         }

@@ -35,6 +35,15 @@ from .const import (
     CLIMATE_COMMAND_RETRY,
     CLIMATE_UPDATE_INTERVAL,
     DOMAIN,
+    PRESET_CLEAN,
+    PRESET_CONVERTI7_40,
+    PRESET_CONVERTI7_55,
+    PRESET_CONVERTI7_70,
+    PRESET_CONVERTI7_80,
+    PRESET_CONVERTI7_90,
+    PRESET_CONVERTI7_FC,
+    PRESET_CONVERTI7_HC,
+    PRESET_CONVERTI7_OFF,
     PRESET_ECONOMY,
     PRESET_MODES,
     PRESET_NANOE,
@@ -179,6 +188,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
             "nanoe_g": False,
             "powerful_mode": False,
             "economy_mode": False,
+            "clean_mode": False,
             "filter_dust_level": None,
             "filter_cleaning_required": None,
             "errors": None,
@@ -356,7 +366,8 @@ class PanasonicMirAIeClimate(ClimateEntity):
             # Get the status of special modes
             nanoe_active = payload.get("acng") == "on"
             powerful_active = payload.get("acpm") == "on"
-            economy_active = payload.get("acec") == "on"
+            clean_active = payload.get("acec") == "on"
+            economy_active = payload.get("acem") == "on"
 
             # Set the preset mode based on active features
             if nanoe_active and powerful_active:
@@ -369,28 +380,96 @@ class PanasonicMirAIeClimate(ClimateEntity):
                 self._attr_preset_mode = PRESET_POWERFUL
             elif economy_active:
                 self._attr_preset_mode = PRESET_ECONOMY
+            elif clean_active:
+                self._attr_preset_mode = PRESET_CLEAN
             else:
                 self._attr_preset_mode = PRESET_NONE
 
-            # Update entity attributes
-            self._attr_extra_state_attributes = {
-                "nanoe_g": nanoe_active,
-                "powerful_mode": powerful_active,
-                "economy_mode": economy_active,
-                "filter_dust_level": payload.get("filterDustLevel"),
-                "filter_cleaning_required": payload.get("filterCleaningRequired"),
-                "errors": payload.get("errors"),
-                "warnings": payload.get("warnings"),
-                "last_update_success": self._last_update_success,
+            # Handle Converti7 mode
+            # Check for cnv field first, then fall back to accm for compatibility
+            cnv_value = payload.get("cnv")
+            accm_value = payload.get("accm")
+            converti7_value = str(cnv_value) if cnv_value is not None else accm_value
+            _LOGGER.debug(
+                "Received Converti7 mode value for %s: cnv=%s, accm=%s (payload keys: %s)",
+                self._attr_name,
+                cnv_value,
+                accm_value,
+                list(payload.keys()),
+            )
+            self._attr_extra_state_attributes["converti7_mode"] = converti7_value
+
+            CONVERTI7_MAP_FROM_PAYLOAD = {
+                "110": PRESET_CONVERTI7_HC,
+                "100": PRESET_CONVERTI7_FC,
+                "90": PRESET_CONVERTI7_90,
+                "80": PRESET_CONVERTI7_80,
+                "70": PRESET_CONVERTI7_70,
+                "55": PRESET_CONVERTI7_55,
+                "40": PRESET_CONVERTI7_40,
+                "0": PRESET_CONVERTI7_OFF,
             }
 
+            if converti7_value in CONVERTI7_MAP_FROM_PAYLOAD:
+                converti7_preset = CONVERTI7_MAP_FROM_PAYLOAD[converti7_value]
+                _LOGGER.debug(
+                    "Mapped Converti7 value %s to preset %s for %s",
+                    converti7_value,
+                    converti7_preset,
+                    self._attr_name,
+                )
+                # Only set Converti7 preset if it's active (not OFF)
+                # Never set to PRESET_CONVERTI7_OFF as that duplicates PRESET_NONE functionality
+                if converti7_preset != PRESET_CONVERTI7_OFF:
+                    _LOGGER.debug(
+                        "Setting preset_mode for %s to %s based on converti7_value %s",
+                        self._attr_name,
+                        converti7_preset,
+                        converti7_value,
+                    )
+                    self._attr_preset_mode = converti7_preset
+                elif self._attr_preset_mode == PRESET_CONVERTI7_OFF:
+                    # If currently showing PRESET_CONVERTI7_OFF, set to PRESET_NONE instead
+                    self._attr_preset_mode = PRESET_NONE
+            else:
+                _LOGGER.debug(
+                    "Converti7 value %s not found in mapping for %s. Available mappings: %s",
+                    converti7_value,
+                    self._attr_name,
+                    CONVERTI7_MAP_FROM_PAYLOAD,
+                )
+
+            # Update entity attributes
+            self._attr_extra_state_attributes.update(
+                {
+                    "nanoe_g": nanoe_active,
+                    "powerful_mode": powerful_active,
+                    "economy_mode": economy_active,
+                    "clean_mode": clean_active,
+                    "filter_dust_level": payload.get("filterDustLevel"),
+                    "filter_cleaning_required": payload.get("filterCleaningRequired"),
+                    "errors": payload.get("errors"),
+                    "warnings": payload.get("warnings"),
+                    "last_update_success": self._last_update_success,
+                    # "converti7_mode" is already updated directly
+                }
+            )
+
             _LOGGER.debug(
-                "Updated state for %s: HVAC Mode - %s, Fan Mode - %s, Swing Mode - %s, Temperature - %s",
+                "Current preset mode for %s: %s, Converti7 mode in attributes: %s",
+                self._attr_name,
+                self._attr_preset_mode,
+                self._attr_extra_state_attributes.get("converti7_mode"),
+            )
+
+            _LOGGER.debug(
+                "Updated state for %s: HVAC Mode - %s, Fan Mode - %s, Swing Mode - %s, Temperature - %s, Preset Mode - %s",
                 self._attr_name,
                 self._attr_hvac_mode,
                 self._attr_fan_mode,
                 self._attr_swing_mode,
                 self._attr_target_temperature,
+                self._attr_preset_mode,
             )
 
             # Mark entity as available as we received a valid state update
@@ -598,7 +677,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
                 self.async_schedule_update_ha_state(True)
 
     @_track_command
-    async def async_set_preset_mode(self, preset_mode: str) -> None:
+    async def async_set_preset_mode(self, preset_mode: str) -> None:  # noqa: C901
         """Set new preset mode.
 
         Args:
@@ -619,6 +698,129 @@ class PanasonicMirAIeClimate(ClimateEntity):
         self._attr_preset_mode = preset_mode
         self.async_write_ha_state()
 
+        CONVERTI7_TO_PAYLOAD_MAP = {
+            PRESET_CONVERTI7_HC: "110",
+            PRESET_CONVERTI7_FC: "100",
+            PRESET_CONVERTI7_90: "90",
+            PRESET_CONVERTI7_80: "80",
+            PRESET_CONVERTI7_70: "70",
+            PRESET_CONVERTI7_55: "55",
+            PRESET_CONVERTI7_40: "40",
+            PRESET_CONVERTI7_OFF: "0",
+        }
+
+        success = True  # Initialize success to True
+
+        if preset_mode in CONVERTI7_TO_PAYLOAD_MAP:
+            _LOGGER.debug(
+                "Attempting to set Converti7 mode for %s to %s",
+                self._attr_name,
+                preset_mode,
+            )
+            if self.hvac_mode != HVACMode.COOL:
+                _LOGGER.warning(
+                    "Converti7 can only be used in Cool mode. Current mode: %s",
+                    self.hvac_mode,
+                )
+                # Revert optimistic update
+                self.async_schedule_update_ha_state(True)
+                return
+
+            numeric_value_str = CONVERTI7_TO_PAYLOAD_MAP[preset_mode]
+            _LOGGER.debug(
+                "Setting Converti7 mode for %s: mapped preset %s to value %s",
+                self._attr_name,
+                preset_mode,
+                numeric_value_str,
+            )
+            success = await self._send_command(
+                self._api.set_converti7_mode, self._device_topic, numeric_value_str
+            )
+            _LOGGER.debug(
+                "Converti7 command result for %s: %s",
+                self._attr_name,
+                "Success" if success else "Failed",
+            )
+
+            if success:
+                # Turn off other modes
+                if (
+                    await self._send_command(
+                        self._api.set_nanoe, self._device_topic, False
+                    )
+                    is False
+                ):
+                    success = False  # Log if this fails but continue
+                if (
+                    await self._send_command(
+                        self._api.set_powerful_mode, self._device_topic, False
+                    )
+                    is False
+                ):
+                    success = False
+                if (
+                    await self._send_command(
+                        self._api.set_economy_mode, self._device_topic, False
+                    )
+                    is False
+                ):
+                    success = False
+
+            if not success:
+                _LOGGER.warning(
+                    "Failed to set Converti7 mode for %s after retries", self._attr_name
+                )
+                self.async_schedule_update_ha_state(True)
+            else:
+                _LOGGER.debug(
+                    "Successfully set Converti7 mode for %s to %s (value: %s)",
+                    self._attr_name,
+                    preset_mode,
+                    numeric_value_str,
+                )
+            return  # Processed Converti7, so exit
+
+        # Handle setting to PRESET_NONE or PRESET_CONVERTI7_OFF
+        # Both should result in all modes being turned off
+        if preset_mode in (PRESET_NONE, PRESET_CONVERTI7_OFF):
+            _LOGGER.debug(
+                "Setting to %s for %s, turning off all modes",
+                preset_mode,
+                self._attr_name,
+            )
+            # Turn off Converti7 first
+            await self._send_command(
+                self._api.set_converti7_mode, self._device_topic, "0"
+            )
+
+        # If not a Converti7 mode, ensure Converti7 is turned off (set to "0")
+        # This will also handle other non-Converti7 presets
+        # Get current converti7 mode and ensure it's a string for comparison
+        current_converti7 = str(
+            self._attr_extra_state_attributes.get("converti7_mode", "0")
+        )
+        if current_converti7 != "0" and current_converti7 != "None":
+            _LOGGER.debug(
+                "Turning off Converti7 mode as other preset (%s) is selected. Current converti7_mode: %s",
+                preset_mode,
+                current_converti7,
+            )
+            converti7_result = await self._send_command(
+                self._api.set_converti7_mode, self._device_topic, "0"
+            )
+            _LOGGER.debug(
+                "Result of turning off Converti7 for %s: %s",
+                self._attr_name,
+                "Success" if converti7_result else "Failed",
+            )
+            if converti7_result is False:
+                success = False  # Log if this fails but continue with other modes
+                _LOGGER.warning(
+                    "Failed to turn off Converti7 mode for %s when setting %s mode",
+                    self._attr_name,
+                    preset_mode,
+                )
+
         # Determine which special modes to enable/disable based on preset mode
         nanoe_active = preset_mode in [
             PRESET_NANOE,
@@ -627,36 +829,76 @@ class PanasonicMirAIeClimate(ClimateEntity):
         ]
         powerful_active = preset_mode in [PRESET_POWERFUL, PRESET_NANOE_POWERFUL]
         economy_active = preset_mode in [PRESET_ECONOMY, PRESET_NANOE_ECONOMY]
+        clean_active = preset_mode == PRESET_CLEAN
 
-        # Can't have both powerful and economy active at once
+        # Can't have multiple special modes active at once
         if powerful_active and economy_active:
             _LOGGER.warning(
                 "Cannot activate both powerful and economy modes. Defaulting to powerful."
             )
             economy_active = False
 
-        # Send commands to update device state
-        success = True
+        if clean_active and (powerful_active or economy_active or nanoe_active):
+            _LOGGER.warning(
+                "Cannot activate clean mode with other modes. Defaulting to clean only."
+            )
+            powerful_active = False
+            economy_active = False
+            nanoe_active = False
+
+        # Send commands to update device state for Nanoe, Powerful, Economy, Clean
         if (
-            success
-            and await self._send_command(
+            await self._send_command(
                 self._api.set_nanoe, self._device_topic, nanoe_active
             )
             is False
         ):
             success = False
         if (
-            success
-            and await self._send_command(
+            await self._send_command(
                 self._api.set_powerful_mode, self._device_topic, powerful_active
             )
             is False
         ):
             success = False
         if (
-            success
-            and await self._send_command(
+            await self._send_command(
                 self._api.set_economy_mode, self._device_topic, economy_active
+            )
+            is False
+        ):
+            success = False
+        if (
+            await self._send_command(
+                self._api.set_clean_mode, self._device_topic, clean_active
+            )
+            is False
+        ):
+            success = False
+        if (
+            await self._send_command(
+                self._api.set_clean_mode, self._device_topic, clean_active
+            )
+            is False
+        ):
+            success = False
+        if (
+            await self._send_command(
+                self._api.set_clean_mode, self._device_topic, clean_active
+            )
+            is False
+        ):
+            success = False
+        if (
+            await self._send_command(
+                self._api.set_clean_mode, self._device_topic, clean_active
+            )
+            is False
+        ):
+            success = False
+        if (
+            await self._send_command(
+                self._api.set_clean_mode, self._device_topic, clean_active
             )
             is False
         ):
@@ -664,7 +906,8 @@ class PanasonicMirAIeClimate(ClimateEntity):
 
         if not success:
             _LOGGER.warning(
-                "Failed to set preset mode for %s after retries", self._attr_name
+                "Failed to set preset mode for %s after retries (some operations might have failed)",
+                self._attr_name,
             )
             # Schedule an update to get the correct state
             self.async_schedule_update_ha_state(True)
@@ -687,4 +930,8 @@ class PanasonicMirAIeClimate(ClimateEntity):
     @property
     def preset_modes(self) -> list[str]:
         """Return available preset modes."""
-        return list(PRESET_MODES.keys())
+        modes = list(PRESET_MODES.keys())
+        # Remove redundant Converti7 Off as it duplicates None functionality
+        if PRESET_CONVERTI7_OFF in modes:
+            modes.remove(PRESET_CONVERTI7_OFF)
+        return modes

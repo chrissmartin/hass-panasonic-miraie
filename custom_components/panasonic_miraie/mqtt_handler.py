@@ -246,7 +246,25 @@ class MQTTHandler:
         try:
             payload_dict = json.loads(message.payload.decode())
             topic_str = str(message.topic)
+
+            # Check for Converti7 related data in the message
+            if "accm" in payload_dict:
+                _LOGGER.debug(
+                    "Converti7 value detected in MQTT message: %s = %s",
+                    topic_str,
+                    payload_dict["accm"],
+                )
+
+            # Log state messages to help debug
+            if topic_str.endswith("/state"):
+                _LOGGER.debug("State update received: %s = %s", topic_str, payload_dict)
+
             if topic_str in self.subscriptions:
+                _LOGGER.debug(
+                    "Processing message for subscribed topic: %s with data: %s",
+                    topic_str,
+                    payload_dict,
+                )
                 callback = self.subscriptions[topic_str]
                 await self.hass.async_add_job(callback, topic_str, payload_dict)
             else:
