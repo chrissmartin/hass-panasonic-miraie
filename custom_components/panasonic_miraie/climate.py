@@ -131,7 +131,14 @@ class PanasonicMirAIeClimate(ClimateEntity):
     _attr_hvac_modes = list(HVAC_MODE_MAP.values())
     _attr_fan_modes = list(FAN_MODE_MAP.values())
     _attr_swing_modes = list(SWING_MODE_MAP.keys())
-    _attr_preset_modes = ["none", "nanoe", "powerful", "economy", "nanoe_powerful", "nanoe_economy"]
+    _attr_preset_modes = [
+        "none",
+        "nanoe",
+        "powerful",
+        "economy",
+        "nanoe_powerful",
+        "nanoe_economy",
+    ]
     _update_lock = asyncio.Lock()
     _command_lock = asyncio.Lock()
     _last_update_success = False
@@ -273,7 +280,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
             )
             self._attr_available = False
 
-    async def _handle_state_update(self, topic: str, payload: dict[str, Any]) -> None:
+    async def _handle_state_update(self, topic: str, payload: dict[str, Any]) -> None:  # noqa: C901
         """Handle state updates from the API or MQTT.
 
         Args:
@@ -583,6 +590,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
 
         Returns:
             None
+
         """
         _LOGGER.debug("Setting preset mode for %s to %s", self._attr_name, preset_mode)
 
@@ -597,16 +605,36 @@ class PanasonicMirAIeClimate(ClimateEntity):
 
         # Can't have both powerful and economy active at once
         if powerful_active and economy_active:
-            _LOGGER.warning("Cannot activate both powerful and economy modes. Defaulting to powerful.")
+            _LOGGER.warning(
+                "Cannot activate both powerful and economy modes. Defaulting to powerful."
+            )
             economy_active = False
 
         # Send commands to update device state
         success = True
-        if success and await self._send_command(self._api.set_nanoe, self._device_topic, nanoe_active) is False:
+        if (
+            success
+            and await self._send_command(
+                self._api.set_nanoe, self._device_topic, nanoe_active
+            )
+            is False
+        ):
             success = False
-        if success and await self._send_command(self._api.set_powerful_mode, self._device_topic, powerful_active) is False:
+        if (
+            success
+            and await self._send_command(
+                self._api.set_powerful_mode, self._device_topic, powerful_active
+            )
+            is False
+        ):
             success = False
-        if success and await self._send_command(self._api.set_economy_mode, self._device_topic, economy_active) is False:
+        if (
+            success
+            and await self._send_command(
+                self._api.set_economy_mode, self._device_topic, economy_active
+            )
+            is False
+        ):
             success = False
 
         if not success:
