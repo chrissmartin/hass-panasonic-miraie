@@ -25,7 +25,10 @@ PRESET_MODES = {
     PRESET_NANOE: {"name": "Nanoe G", "icon": "mdi:air-filter"},
     PRESET_POWERFUL: {"name": "Powerful", "icon": "mdi:rocket-launch"},
     PRESET_ECONOMY: {"name": "Economy", "icon": "mdi:leaf"},
-    PRESET_NANOE_POWERFUL: {"name": "Nanoe + Powerful", "icon": "mdi:air-filter-outline"},
+    PRESET_NANOE_POWERFUL: {
+        "name": "Nanoe + Powerful",
+        "icon": "mdi:air-filter-outline",
+    },
     PRESET_NANOE_ECONOMY: {"name": "Nanoe + Economy", "icon": "mdi:sprout"},
 }
 
