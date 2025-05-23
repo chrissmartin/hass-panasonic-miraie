@@ -14,11 +14,11 @@
               "nanoe_economy": "mdi:leaf-circle-outline",
               "converti7_hc": "mdi:arrow-up-bold-hexagon-outline",
               "converti7_fc": "mdi:arrow-up-bold-box-outline",
-              "converti7_90": "mdi:fraction-one-half",
-              "converti7_80": "mdi:fraction-one-half",
-              "converti7_70": "mdi:fraction-one-half",
-              "converti7_55": "mdi:fraction-one-half",
-              "converti7_40": "mdi:fraction-one-half",
+              "converti7_90": "mdi:numeric-9-circle",
+              "converti7_80": "mdi:numeric-8-circle",
+              "converti7_70": "mdi:numeric-7-circle",
+              "converti7_55": "mdi:numeric-5-circle",
+              "converti7_40": "mdi:numeric-4-circle",
               "converti7_off": "mdi:power-plug-off-outline"
             }
           }
