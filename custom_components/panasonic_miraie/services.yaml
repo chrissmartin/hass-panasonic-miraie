@@ -1,0 +1,47 @@
+set_nanoe:
+  name: Set nanoe G
+  description: Turn on or off the nanoe G feature of a Panasonic MirAIe air conditioner.
+  target:
+    entity:
+      integration: panasonic_miraie
+      domain: climate
+  fields:
+    state:
+      name: State
+      description: Turn on or off nanoe G.
+      example: true
+      required: true
+      selector:
+        boolean:
+
+set_powerful_mode:
+  name: Set powerful mode
+  description: Turn on or off the powerful mode feature of a Panasonic MirAIe air conditioner.
+  target:
+    entity:
+      integration: panasonic_miraie
+      domain: climate
+  fields:
+    state:
+      name: State
+      description: Turn on or off powerful mode.
+      example: true
+      required: true
+      selector:
+        boolean:
+
+set_economy_mode:
+  name: Set economy mode
+  description: Turn on or off the economy mode feature of a Panasonic MirAIe air conditioner.
+  target:
+    entity:
+      integration: panasonic_miraie
+      domain: climate
+  fields:
+    state:
+      name: State
+      description: Turn on or off economy mode.
+      example: true
+      required: true
+      selector:
+        boolean:

@@ -428,6 +428,42 @@ class PanasonicMirAIeAPI:
         payload.update({"acvs": swing_mode})
         return await self.mqtt_handler.publish(f"{device_topic}/control", payload)
 
+    async def set_nanoe(self, device_topic: str, state: bool):
+        """Set the nanoe G feature of a device.
+
+        Args:
+            device_topic: The MQTT topic for the device.
+            state: The desired state (True for ON, False for OFF).
+
+        """
+        payload = self._get_base_payload()
+        payload.update({"acng": "on" if state else "off"})
+        return await self.mqtt_handler.publish(f"{device_topic}/control", payload)
+
+    async def set_powerful_mode(self, device_topic: str, state: bool):
+        """Set the powerful mode feature of a device.
+
+        Args:
+            device_topic: The MQTT topic for the device.
+            state: The desired state (True for ON, False for OFF).
+
+        """
+        payload = self._get_base_payload()
+        payload.update({"acpm": "on" if state else "off"})
+        return await self.mqtt_handler.publish(f"{device_topic}/control", payload)
+
+    async def set_economy_mode(self, device_topic: str, state: bool):
+        """Set the economy mode feature of a device.
+
+        Args:
+            device_topic: The MQTT topic for the device.
+            state: The desired state (True for ON, False for OFF).
+
+        """
+        payload = self._get_base_payload()
+        payload.update({"acec": "on" if state else "off"})
+        return await self.mqtt_handler.publish(f"{device_topic}/control", payload)
+
     def _get_base_payload(self):
         """Get the base payload for MQTT messages.
 

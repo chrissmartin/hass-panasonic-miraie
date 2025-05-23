@@ -13,9 +13,9 @@ This integration allows you to control your Panasonic MirAIe air conditioners th
 - Control swing mode (Off, Vertical, Horizontal, Both)
 - Monitor current room temperature
 - View and control additional features:
-  - NanoeTM X (On/Off)
-  - Powerful mode (On/Off)
-  - Economy mode (On/Off)
+  - NanoeTM X (On/Off) - controllable via service
+  - Powerful mode (On/Off) - controllable via service
+  - Economy mode (On/Off) - controllable via service
 - Monitor filter status:
   - Dust level
   - Cleaning required indicator
@@ -133,6 +133,40 @@ Each MirAIe device will have the following attributes:
 - `filter_cleaning_required`: Indicator if filter cleaning is required
 - `errors`: Any current device errors
 - `warnings`: Any current device warnings
+
+### Services
+
+The integration provides the following services:
+
+#### Set NanoeTM X Feature
+
+```yaml
+service: panasonic_miraie.set_nanoe
+target:
+  entity_id: climate.your_ac_name
+data:
+  state: true  # or false to turn off
+```
+
+#### Set Powerful Mode
+
+```yaml
+service: panasonic_miraie.set_powerful_mode
+target:
+  entity_id: climate.your_ac_name
+data:
+  state: true  # or false to turn off
+```
+
+#### Set Economy Mode
+
+```yaml
+service: panasonic_miraie.set_economy_mode
+target:
+  entity_id: climate.your_ac_name
+data:
+  state: true  # or false to turn off
+```
 
 ## Troubleshooting
 
