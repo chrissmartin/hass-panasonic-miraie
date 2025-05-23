@@ -381,7 +381,9 @@ class PanasonicMirAIeClimate(ClimateEntity):
 
         # Use the centralized mapping for Converti7 modes
         # Use the reverse mapping for Converti7 modes
-        payload_to_converti7_map = {v: k for k, v in self.CONVERTI7_TO_PAYLOAD_MAP.items()}
+        payload_to_converti7_map = {
+            v: k for k, v in self.CONVERTI7_TO_PAYLOAD_MAP.items()
+        }
 
         if converti7_value in payload_to_converti7_map:
             converti7_preset = payload_to_converti7_map[converti7_value]
