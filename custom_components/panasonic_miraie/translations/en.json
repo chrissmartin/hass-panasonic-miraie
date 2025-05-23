@@ -22,15 +22,16 @@
   "entity": {
     "climate": {
       "panasonic_miraie": {
-
-        "state": {
+        "state_attributes": {
           "preset_mode": {
-            "none": "None",
-            "nanoe": "Nanoe G",
-            "powerful": "Powerful",
-            "economy": "Economy",
-            "nanoe_powerful": "Nanoe + Powerful",
-            "nanoe_economy": "Nanoe + Economy"
+            "state": {
+              "none": "None",
+              "nanoe": "Nanoe G",
+              "powerful": "Powerful",
+              "economy": "Economy",
+              "nanoe_powerful": "Nanoe + Powerful",
+              "nanoe_economy": "Nanoe + Economy"
+            }
           }
         }
       }

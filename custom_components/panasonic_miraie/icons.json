@@ -1,12 +1,20 @@
 {
-  "climate": {
-    "preset_mode": {
-      "none": "mdi:cancel",
-      "nanoe": "mdi:air-filter",
-      "powerful": "mdi:rocket-launch",
-      "economy": "mdi:leaf",
-      "nanoe_powerful": "mdi:air-filter-outline",
-      "nanoe_economy": "mdi:sprout"
+  "entity": {
+    "climate": {
+      "panasonic_miraie": {
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "none": "mdi:cancel",
+              "nanoe": "mdi:air-purifier",
+              "powerful": "mdi:rocket-launch",
+              "economy": "mdi:leaf",
+              "nanoe_powerful": "mdi:weather-windy",
+              "nanoe_economy": "mdi:leaf-circle-outline"
+            }
+          }
+        }
+      }
     }
   }
 }
