@@ -126,7 +126,7 @@ Each MirAIe device will have the following attributes:
 - `hvac_mode`: The current operation mode (off, auto, cool, heat, dry, fan_only)
 - `fan_mode`: The current fan speed (auto, low, medium, high, quiet)
 - `swing_mode`: The current swing setting (off, vertical, horizontal, both)
-- `preset_mode`: The current preset mode (none, nanoe, powerful, economy, nanoe_powerful, nanoe_economy)
+- `preset_mode`: The current preset mode (None, Nanoe G, Powerful, Economy, Nanoe + Powerful, Nanoe + Economy)
 - `nanoe_g`: Status of NanoeTM X feature (on/off)
 - `powerful_mode`: Status of Powerful mode (on/off)
 - `economy_mode`: Status of Economy mode (on/off)
@@ -139,12 +139,14 @@ Each MirAIe device will have the following attributes:
 
 You can control the special features through preset modes in the climate entity UI:
 
-- `none`: All special features disabled
-- `nanoe`: Only NanoeTM X feature enabled
-- `powerful`: Only Powerful mode enabled
-- `economy`: Only Economy mode enabled
-- `nanoe_powerful`: Both NanoeTM X and Powerful mode enabled
-- `nanoe_economy`: Both NanoeTM X and Economy mode enabled
+- **None**: All special features disabled
+- **Nanoe G**: Only NanoeTM X feature enabled - improves air quality
+- **Powerful**: Only Powerful mode enabled - maximum cooling/heating performance
+- **Economy**: Only Economy mode enabled - energy-saving operation
+- **Nanoe + Powerful**: Both NanoeTM X and Powerful mode enabled
+- **Nanoe + Economy**: Both NanoeTM X and Economy mode enabled
+
+Each preset mode includes an appropriate icon in the UI for easy identification.
 
 Note: Powerful mode and Economy mode cannot be active simultaneously, so attempting to set both will prioritize Powerful mode.
 

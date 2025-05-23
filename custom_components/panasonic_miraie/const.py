@@ -11,6 +11,24 @@ MIRAIE_BROKER_HOST = "mqtt.miraie.in"
 MIRAIE_BROKER_PORT = 8883
 MIRAIE_BROKER_USE_SSL = True
 
+# Preset mode constants
+PRESET_NONE = "none"
+PRESET_NANOE = "nanoe"
+PRESET_POWERFUL = "powerful"
+PRESET_ECONOMY = "economy"
+PRESET_NANOE_POWERFUL = "nanoe_powerful"
+PRESET_NANOE_ECONOMY = "nanoe_economy"
+
+# Preset mode definitions with friendly names and icons
+PRESET_MODES = {
+    PRESET_NONE: {"name": "None", "icon": "mdi:cancel"},
+    PRESET_NANOE: {"name": "Nanoe G", "icon": "mdi:air-filter"},
+    PRESET_POWERFUL: {"name": "Powerful", "icon": "mdi:rocket-launch"},
+    PRESET_ECONOMY: {"name": "Economy", "icon": "mdi:leaf"},
+    PRESET_NANOE_POWERFUL: {"name": "Nanoe + Powerful", "icon": "mdi:air-filter-outline"},
+    PRESET_NANOE_ECONOMY: {"name": "Nanoe + Economy", "icon": "mdi:sprout"},
+}
+
 # 360 sec = 6 min
 LOGIN_RETRY_DELAY = 360 * 1000
 

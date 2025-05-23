@@ -18,5 +18,23 @@
     "abort": {
       "already_configured": "Account is already configured"
     }
+  },
+  "entity": {
+    "climate": {
+      "panasonic_miraie": {
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "none": "None",
+              "nanoe": "Nanoe G",
+              "powerful": "Powerful",
+              "economy": "Economy",
+              "nanoe_powerful": "Nanoe + Powerful",
+              "nanoe_economy": "Nanoe + Economy"
+            }
+          }
+        }
+      }
+    }
   }
 }

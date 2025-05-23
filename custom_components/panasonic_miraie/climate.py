@@ -35,6 +35,13 @@ from .const import (
     CLIMATE_COMMAND_RETRY,
     CLIMATE_UPDATE_INTERVAL,
     DOMAIN,
+    PRESET_ECONOMY,
+    PRESET_MODES,
+    PRESET_NANOE,
+    PRESET_NANOE_ECONOMY,
+    PRESET_NANOE_POWERFUL,
+    PRESET_NONE,
+    PRESET_POWERFUL,
 )
 from .decorators.track_command import _track_command
 
@@ -64,6 +71,8 @@ SWING_MODE_MAP = {
     SWING_HORIZONTAL: "0",
     SWING_BOTH: "0",
 }
+
+# Use preset modes from const.py
 
 
 async def async_setup_entry(
@@ -131,14 +140,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
     _attr_hvac_modes = list(HVAC_MODE_MAP.values())
     _attr_fan_modes = list(FAN_MODE_MAP.values())
     _attr_swing_modes = list(SWING_MODE_MAP.keys())
-    _attr_preset_modes = [
-        "none",
-        "nanoe",
-        "powerful",
-        "economy",
-        "nanoe_powerful",
-        "nanoe_economy",
-    ]
+    _attr_preset_modes = list(PRESET_MODES.keys())
     _update_lock = asyncio.Lock()
     _command_lock = asyncio.Lock()
     _last_update_success = False
@@ -171,7 +173,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
         self._attr_available = True  # Start optimistically
         self._mqtt_state_received_after_command = False
         self._command_time = 0
-        self._attr_preset_mode = "none"
+        self._attr_preset_mode = PRESET_NONE
 
         _LOGGER.debug(
             "Initialized climate entity: %s with topic %s",
@@ -345,17 +347,17 @@ class PanasonicMirAIeClimate(ClimateEntity):
 
             # Set the preset mode based on active features
             if nanoe_active and powerful_active:
-                self._attr_preset_mode = "nanoe_powerful"
+                self._attr_preset_mode = PRESET_NANOE_POWERFUL
             elif nanoe_active and economy_active:
-                self._attr_preset_mode = "nanoe_economy"
+                self._attr_preset_mode = PRESET_NANOE_ECONOMY
             elif nanoe_active:
-                self._attr_preset_mode = "nanoe"
+                self._attr_preset_mode = PRESET_NANOE
             elif powerful_active:
-                self._attr_preset_mode = "powerful"
+                self._attr_preset_mode = PRESET_POWERFUL
             elif economy_active:
-                self._attr_preset_mode = "economy"
+                self._attr_preset_mode = PRESET_ECONOMY
             else:
-                self._attr_preset_mode = "none"
+                self._attr_preset_mode = PRESET_NONE
 
             self._attr_extra_state_attributes = {
                 "nanoe_g": nanoe_active,
@@ -592,16 +594,21 @@ class PanasonicMirAIeClimate(ClimateEntity):
             None
 
         """
-        _LOGGER.debug("Setting preset mode for %s to %s", self._attr_name, preset_mode)
+        _LOGGER.debug(
+            "Setting preset mode for %s to %s (%s)",
+            self._attr_name,
+            preset_mode,
+            PRESET_MODES.get(preset_mode, {}).get("name", preset_mode),
+        )
 
         # Update state optimistically
         self._attr_preset_mode = preset_mode
         self.async_write_ha_state()
 
         # Determine which special modes to enable/disable
-        nanoe_active = "nanoe" in preset_mode
-        powerful_active = "powerful" in preset_mode
-        economy_active = "economy" in preset_mode
+        nanoe_active = PRESET_NANOE in preset_mode
+        powerful_active = PRESET_POWERFUL in preset_mode
+        economy_active = PRESET_ECONOMY in preset_mode
 
         # Can't have both powerful and economy active at once
         if powerful_active and economy_active:
