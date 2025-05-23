@@ -380,10 +380,11 @@ class PanasonicMirAIeClimate(ClimateEntity):
         self._attr_extra_state_attributes["converti7_mode"] = converti7_value
 
         # Use the centralized mapping for Converti7 modes
-        converti7_map = self.CONVERTI7_TO_PAYLOAD_MAP
+        # Use the reverse mapping for Converti7 modes
+        payload_to_converti7_map = {v: k for k, v in self.CONVERTI7_TO_PAYLOAD_MAP.items()}
 
-        if converti7_value in converti7_map:
-            converti7_preset = converti7_map[converti7_value]
+        if converti7_value in payload_to_converti7_map:
+            converti7_preset = payload_to_converti7_map[converti7_value]
 
             # Only set Converti7 preset if it's active (not OFF)
             # Never set to PRESET_CONVERTI7_OFF as that duplicates PRESET_NONE functionality
