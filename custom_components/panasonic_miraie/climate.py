@@ -72,7 +72,15 @@ SWING_MODE_MAP = {
     SWING_BOTH: "0",
 }
 
-# Use preset modes from const.py
+# Preset modes mapping for UI display
+PRESET_MODE_ICONS = {
+    PRESET_NONE: "mdi:cancel",
+    PRESET_NANOE: "mdi:air-filter",
+    PRESET_POWERFUL: "mdi:rocket-launch",
+    PRESET_ECONOMY: "mdi:leaf",
+    PRESET_NANOE_POWERFUL: "mdi:air-filter-outline",
+    PRESET_NANOE_ECONOMY: "mdi:sprout",
+}
 
 
 async def async_setup_entry(
@@ -141,6 +149,8 @@ class PanasonicMirAIeClimate(ClimateEntity):
     _attr_fan_modes = list(FAN_MODE_MAP.values())
     _attr_swing_modes = list(SWING_MODE_MAP.keys())
     _attr_preset_modes = list(PRESET_MODES.keys())
+    _attr_translation_key = "panasonic_miraie"
+    _attr_preset_mode_icons = PRESET_MODE_ICONS
     _update_lock = asyncio.Lock()
     _command_lock = asyncio.Lock()
     _last_update_success = False
@@ -174,6 +184,20 @@ class PanasonicMirAIeClimate(ClimateEntity):
         self._mqtt_state_received_after_command = False
         self._command_time = 0
         self._attr_preset_mode = PRESET_NONE
+
+        # Initialize entity attributes
+        self._attr_extra_state_attributes = {
+            "nanoe_g": False,
+            "powerful_mode": False,
+            "economy_mode": False,
+            "filter_dust_level": None,
+            "filter_cleaning_required": None,
+            "errors": None,
+            "warnings": None,
+            "last_update_success": False,
+        }
+
+        # Initialize preset mode
 
         _LOGGER.debug(
             "Initialized climate entity: %s with topic %s",
@@ -359,6 +383,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
             else:
                 self._attr_preset_mode = PRESET_NONE
 
+            # Update entity attributes
             self._attr_extra_state_attributes = {
                 "nanoe_g": nanoe_active,
                 "powerful_mode": powerful_active,
@@ -605,10 +630,14 @@ class PanasonicMirAIeClimate(ClimateEntity):
         self._attr_preset_mode = preset_mode
         self.async_write_ha_state()
 
-        # Determine which special modes to enable/disable
-        nanoe_active = PRESET_NANOE in preset_mode
-        powerful_active = PRESET_POWERFUL in preset_mode
-        economy_active = PRESET_ECONOMY in preset_mode
+        # Determine which special modes to enable/disable based on preset mode
+        nanoe_active = preset_mode in [
+            PRESET_NANOE,
+            PRESET_NANOE_POWERFUL,
+            PRESET_NANOE_ECONOMY,
+        ]
+        powerful_active = preset_mode in [PRESET_POWERFUL, PRESET_NANOE_POWERFUL]
+        economy_active = preset_mode in [PRESET_ECONOMY, PRESET_NANOE_ECONOMY]
 
         # Can't have both powerful and economy active at once
         if powerful_active and economy_active:
@@ -665,3 +694,8 @@ class PanasonicMirAIeClimate(ClimateEntity):
             "manufacturer": "Panasonic",
             "model": "MirAIe AC",
         }
+
+    @property
+    def preset_modes(self) -> list[str]:
+        """Return available preset modes."""
+        return list(PRESET_MODES.keys())

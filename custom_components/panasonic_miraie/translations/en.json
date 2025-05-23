@@ -33,6 +33,16 @@
               "nanoe_economy": "Nanoe + Economy"
             }
           }
+        },
+        "state": {
+          "preset_mode": {
+            "none": "None",
+            "nanoe": "Nanoe G",
+            "powerful": "Powerful",
+            "economy": "Economy",
+            "nanoe_powerful": "Nanoe + Powerful",
+            "nanoe_economy": "Nanoe + Economy"
+          }
         }
       }
     }
