@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -31,6 +31,7 @@ SERVICE_SCHEMAS = {
     SERVICE_SET_ECONOMY_MODE: SERVICE_BASE_SCHEMA,
 }
 
+
 async def async_setup_services(hass: HomeAssistant) -> None:
     """Set up Panasonic MirAIe services."""
     if hass.services.has_service(DOMAIN, SERVICE_SET_NANOE):
@@ -49,9 +50,11 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         await _async_set_special_mode(hass, service_call, "set_economy_mode")
 
     hass.services.async_register(
-        DOMAIN, SERVICE_SET_NANOE, async_handle_set_nanoe, schema=SERVICE_SCHEMAS[SERVICE_SET_NANOE]
+        DOMAIN,
+        SERVICE_SET_NANOE,
+        async_handle_set_nanoe,
+        schema=SERVICE_SCHEMAS[SERVICE_SET_NANOE],
     )
-
 
     hass.services.async_register(
         DOMAIN,
