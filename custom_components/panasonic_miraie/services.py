@@ -80,22 +80,22 @@ async def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_SET_ECONOMY_MODE)
 
 
-async def _async_set_special_mode(
+async def _async_set_special_mode(  # noqa: C901
     hass: HomeAssistant, service_call: ServiceCall, api_method: str
 ) -> None:
     """Handle special mode service call."""
     state = service_call.data["state"]
     target_entities = service_call.target.get("entity_id", [])
-    
+
     if not target_entities:
         _LOGGER.error(
             "Failed to call %s service: No target entities specified",
             api_method,
         )
         return
-        
+
     entity_registry = er.async_get(hass)
-    
+
     # Process each target entity
     for entity_id in target_entities:
         # Find the entity registry entry
