@@ -72,16 +72,6 @@ SWING_MODE_MAP = {
     SWING_BOTH: "0",
 }
 
-# Preset modes mapping for UI display
-PRESET_MODE_ICONS = {
-    PRESET_NONE: "mdi:cancel",
-    PRESET_NANOE: "mdi:air-filter",
-    PRESET_POWERFUL: "mdi:rocket-launch",
-    PRESET_ECONOMY: "mdi:leaf",
-    PRESET_NANOE_POWERFUL: "mdi:air-filter-outline",
-    PRESET_NANOE_ECONOMY: "mdi:sprout",
-}
-
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -150,7 +140,6 @@ class PanasonicMirAIeClimate(ClimateEntity):
     _attr_swing_modes = list(SWING_MODE_MAP.keys())
     _attr_preset_modes = list(PRESET_MODES.keys())
     _attr_translation_key = "panasonic_miraie"
-    _attr_preset_mode_icons = PRESET_MODE_ICONS
     _update_lock = asyncio.Lock()
     _command_lock = asyncio.Lock()
     _last_update_success = False
