@@ -382,8 +382,8 @@ class PanasonicMirAIeClimate(ClimateEntity):
         # Use the centralized mapping for Converti7 modes
         converti7_map = self.CONVERTI7_TO_PAYLOAD_MAP
 
-        if converti7_value in CONVERTI7_MAP_FROM_PAYLOAD:
-            converti7_preset = CONVERTI7_MAP_FROM_PAYLOAD[converti7_value]
+        if converti7_value in converti7_map:
+            converti7_preset = converti7_map[converti7_value]
 
             # Only set Converti7 preset if it's active (not OFF)
             # Never set to PRESET_CONVERTI7_OFF as that duplicates PRESET_NONE functionality
@@ -430,7 +430,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
             hvac_mode_str = payload.get("acmd")
 
             self._attr_hvac_mode = (
-                HVAC_MODE_MAP.get(hvac_mode_str, HVACMode.OFF)
+                self.HVAC_MODE_MAP.get(hvac_mode_str, HVACMode.OFF)
                 if is_power_on
                 else HVACMode.OFF
             )
