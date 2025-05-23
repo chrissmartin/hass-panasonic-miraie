@@ -17,10 +17,9 @@ SERVICE_SET_NANOE = "set_nanoe"
 SERVICE_SET_POWERFUL_MODE = "set_powerful_mode"
 SERVICE_SET_ECONOMY_MODE = "set_economy_mode"
 
-# Common validation schema for all services with entity_id and state
+# Common validation schema for all services with state parameter
 SERVICE_BASE_SCHEMA = vol.Schema(
     {
-        vol.Required("entity_id"): cv.entity_id,
         vol.Required("state"): cv.boolean,
     }
 )
@@ -85,63 +84,76 @@ async def _async_set_special_mode(
     hass: HomeAssistant, service_call: ServiceCall, api_method: str
 ) -> None:
     """Handle special mode service call."""
-    entity_id = service_call.data["entity_id"]
     state = service_call.data["state"]
-
-    # Find the entity registry entry
+    target_entities = service_call.target.get("entity_id", [])
+    
+    if not target_entities:
+        _LOGGER.error(
+            "Failed to call %s service: No target entities specified",
+            api_method,
+        )
+        return
+        
     entity_registry = er.async_get(hass)
-    registry_entry = entity_registry.async_get(entity_id)
+    
+    # Process each target entity
+    for entity_id in target_entities:
+        # Find the entity registry entry
+        registry_entry = entity_registry.async_get(entity_id)
 
-    if registry_entry is None or registry_entry.platform != DOMAIN:
-        _LOGGER.error(
-            "Failed to call %s service: Entity %s not found or not a Panasonic MirAIe entity",
-            api_method,
-            entity_id,
-        )
-        return
+        if registry_entry is None or registry_entry.platform != DOMAIN:
+            _LOGGER.error(
+                "Failed to call %s service: Entity %s not found or not a Panasonic MirAIe entity",
+                api_method,
+                entity_id,
+            )
+            continue
 
-    # Get the device entry from the registry
-    device_id = registry_entry.device_id
-    if device_id is None:
-        _LOGGER.error(
-            "Failed to call %s service: Entity %s is not associated with a device",
-            api_method,
-            entity_id,
-        )
-        return
+        # Get the device entry from the registry
+        device_id = registry_entry.device_id
+        if device_id is None:
+            _LOGGER.error(
+                "Failed to call %s service: Entity %s is not associated with a device",
+                api_method,
+                entity_id,
+            )
+            continue
 
-    # Get all config entries for this domain
-    for _, api in hass.data[DOMAIN].items():
-        # Find the device in this entry's devices
-        device = None
-        for dev in api.devices:
-            if dev.get("id") == device_id or dev.get("uniqueId") == device_id:
-                device = dev
-                break
+        found_device = False
+        # Get all config entries for this domain
+        for _, api in hass.data[DOMAIN].items():
+            # Find the device in this entry's devices
+            device = None
+            for dev in api.devices:
+                if dev.get("id") == device_id or dev.get("uniqueId") == device_id:
+                    device = dev
+                    break
 
-        if device:
-            # Call the appropriate API method
-            topic = device.get("topic")
-            if not topic:
-                _LOGGER.error(
-                    "Failed to call %s service: Device %s has no topic",
+            if device:
+                # Call the appropriate API method
+                topic = device.get("topic")
+                if not topic:
+                    _LOGGER.error(
+                        "Failed to call %s service: Device %s has no topic",
+                        api_method,
+                        device_id,
+                    )
+                    continue
+
+                api_func = getattr(api, api_method)
+                await api_func(topic, state)
+                _LOGGER.debug(
+                    "Successfully called %s with state %s for device %s",
                     api_method,
+                    state,
                     device_id,
                 )
-                return
+                found_device = True
+                break
 
-            api_func = getattr(api, api_method)
-            await api_func(topic, state)
-            _LOGGER.debug(
-                "Successfully called %s with state %s for device %s",
+        if not found_device:
+            _LOGGER.error(
+                "Failed to call %s service: Device %s not found in any config entry",
                 api_method,
-                state,
                 device_id,
             )
-            return
-
-    _LOGGER.error(
-        "Failed to call %s service: Device %s not found in any config entry",
-        api_method,
-        device_id,
-    )

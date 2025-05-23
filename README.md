@@ -168,6 +168,18 @@ data:
   state: true  # or false to turn off
 ```
 
+You can also target multiple entities:
+
+```yaml
+service: panasonic_miraie.set_nanoe
+target:
+  entity_id:
+    - climate.bedroom_ac
+    - climate.living_room_ac
+data:
+  state: true
+```
+
 ## Troubleshooting
 
 - If you encounter connection issues, ensure your Home Assistant instance has a stable internet connection.
