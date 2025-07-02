@@ -1,4 +1,7 @@
 {
   "name": "Panasonic MirAIe",
-  "homeassistant": "2024.1.0"
+  "content_in_root": true,
+  "domains": ["panasonic_miraie"],
+  "homeassistant": "2024.1.0",
+  "render_readme": true
 }

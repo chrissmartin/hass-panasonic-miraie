@@ -433,7 +433,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
             hvac_mode_str = payload.get("acmd")
 
             self._attr_hvac_mode = (
-                self.HVAC_MODE_MAP.get(hvac_mode_str, HVACMode.OFF)
+                HVAC_MODE_MAP.get(hvac_mode_str, HVACMode.OFF)
                 if is_power_on
                 else HVACMode.OFF
             )
