@@ -145,6 +145,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
     _attr_min_temp = 16
     _attr_max_temp = 30
     _attr_hvac_modes = list(HVAC_MODE_MAP.values())
+    _attr_hvac_mode = HVACMode.OFF
     _attr_fan_modes = list(FAN_MODE_MAP.values())
     _attr_swing_modes = list(SWING_MODE_MAP.keys())
     _attr_preset_modes = list(PRESET_MODES.keys())
@@ -433,7 +434,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
             hvac_mode_str = payload.get("acmd")
 
             self._attr_hvac_mode = (
-                self.HVAC_MODE_MAP.get(hvac_mode_str, HVACMode.OFF)
+                HVAC_MODE_MAP.get(hvac_mode_str, HVACMode.OFF)
                 if is_power_on
                 else HVACMode.OFF
             )
