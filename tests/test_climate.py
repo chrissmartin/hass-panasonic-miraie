@@ -1,6 +1,6 @@
 import asyncio
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, call
 
 import pytest
 
@@ -201,6 +201,39 @@ def test_missing_mqtt_confirmation_polls_before_setter_returns(monkeypatch) -> N
     assert entity.target_temperature == 25.0
 
 
+def test_pre_command_mqtt_callback_does_not_skip_api_reconciliation(
+    monkeypatch,
+) -> None:
+    api = SimpleNamespace(
+        get_device_state=AsyncMock(return_value=_state(actmp="25.0")),
+    )
+    entity = _entity(api)
+    monkeypatch.setattr(climate_module.asyncio, "sleep", AsyncMock())
+
+    async def run_command() -> None:
+        run_callback = asyncio.Event()
+
+        async def delayed_state_callback() -> None:
+            await run_callback.wait()
+            await entity._handle_state_update(
+                "device/topic/state", _state(actmp="24.0")
+            )
+
+        callback_task = asyncio.create_task(delayed_state_callback())
+
+        async def command() -> bool:
+            run_callback.set()
+            await callback_task
+            return True
+
+        assert await entity._send_command(command) is True
+
+    asyncio.run(run_command())
+
+    api.get_device_state.assert_awaited_once_with("device-id")
+    assert entity.target_temperature == 25.0
+
+
 def test_each_publish_requires_its_own_confirmation(monkeypatch) -> None:
     api = SimpleNamespace()
     entity = _entity(api)
@@ -211,10 +244,13 @@ def test_each_publish_requires_its_own_confirmation(monkeypatch) -> None:
 
     api.set_power = set_power
     api.set_mode = AsyncMock(return_value=True)
-    api.get_device_state = AsyncMock(return_value=_state(acmd="heat"))
+    api.get_device_state = AsyncMock(
+        side_effect=[_state(acmd="cool"), _state(acmd="heat")]
+    )
     monkeypatch.setattr(climate_module.asyncio, "sleep", AsyncMock())
 
     asyncio.run(entity.async_set_hvac_mode(HVACMode.HEAT))
 
-    api.get_device_state.assert_awaited_once_with("device-id")
+    assert api.get_device_state.await_count == 2
+    api.get_device_state.assert_has_awaits([call("device-id"), call("device-id")])
     assert entity.hvac_mode == HVACMode.HEAT

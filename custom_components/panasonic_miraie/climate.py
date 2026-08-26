@@ -187,7 +187,6 @@ class PanasonicMirAIeClimate(ClimateEntity):
         self._command_lock = asyncio.Lock()
         self._last_update_success = False
         self._missed_updates = 0
-        self._mqtt_state_received_after_command = False
         self._attr_preset_mode = PRESET_NONE
 
         # Initialize entity attributes
@@ -460,10 +459,6 @@ class PanasonicMirAIeClimate(ClimateEntity):
             )
             self._missed_updates = 0
 
-            if topic.endswith("/state"):
-                self._mqtt_state_received_after_command = True
-                _LOGGER.debug("Received MQTT update after command")
-
             # Update the state in Home Assistant
             self.async_write_ha_state()
         except Exception as e:
@@ -500,8 +495,6 @@ class PanasonicMirAIeClimate(ClimateEntity):
                     await asyncio.sleep(1)
 
                 try:
-                    self._mqtt_state_received_after_command = False
-
                     # Set a timeout for the command
                     async with asyncio.timeout(API_COMMAND_TIMEOUT):
                         result = await command_fn(*args, **kwargs)
@@ -515,13 +508,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
                     # Wait a short time for state update to arrive via MQTT
                     await asyncio.sleep(2)
 
-                    # If we haven't received an MQTT update after the wait,
-                    # request a state update directly
-                    if success and not self._mqtt_state_received_after_command:
-                        _LOGGER.debug(
-                            "No MQTT update received, requesting state update"
-                        )
-                        await self.async_update()
+                    await self.async_update()
 
                     break
                 except TimeoutError:
