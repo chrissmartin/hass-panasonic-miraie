@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 from datetime import timedelta
 import logging
-import time
 from typing import Any
 
 from homeassistant.components.climate import ClimateEntity
@@ -52,7 +51,6 @@ from .const import (
     PRESET_NONE,
     PRESET_POWERFUL,
 )
-from .decorators.track_command import _track_command
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -149,12 +147,6 @@ class PanasonicMirAIeClimate(ClimateEntity):
     _attr_swing_modes = list(SWING_MODE_MAP.keys())
     _attr_preset_modes = list(PRESET_MODES.keys())
     _attr_translation_key = "panasonic_miraie"
-    _update_lock = asyncio.Lock()
-    _command_lock = asyncio.Lock()
-    _last_update_success = False
-    _missed_updates = 0
-    _state_via_mqtt = {}
-
     # Converti7 mode mapping
     CONVERTI7_TO_PAYLOAD_MAP = {
         PRESET_CONVERTI7_HC: "110",
@@ -191,8 +183,11 @@ class PanasonicMirAIeClimate(ClimateEntity):
             | ClimateEntityFeature.PRESET_MODE
         )
         self._attr_available = True  # Start optimistically
+        self._update_lock = asyncio.Lock()
+        self._command_lock = asyncio.Lock()
+        self._last_update_success = False
+        self._missed_updates = 0
         self._mqtt_state_received_after_command = False
-        self._command_time = 0
         self._attr_preset_mode = PRESET_NONE
 
         # Initialize entity attributes
@@ -268,13 +263,6 @@ class PanasonicMirAIeClimate(ClimateEntity):
             None
 
         """
-        # Skip if update is already in progress
-        if self._update_lock.locked():
-            _LOGGER.debug(
-                "Update already in progress for %s, skipping", self._attr_name
-            )
-            return
-
         async with self._update_lock:
             try:
                 _LOGGER.debug("[async_update] Updating device ID: %s", self._device_id)
@@ -285,8 +273,6 @@ class PanasonicMirAIeClimate(ClimateEntity):
 
                 if state:
                     await self._handle_state_update(self._device_topic, state)
-                    self._last_update_success = True
-                    self._missed_updates = 0
                 else:
                     _LOGGER.warning("Received empty state for %s", self._attr_name)
                     self._increment_missed_updates()
@@ -307,10 +293,10 @@ class PanasonicMirAIeClimate(ClimateEntity):
         """Handle missed updates by tracking consecutive failures."""
         self._last_update_success = False
         self._missed_updates += 1
+        self._attr_extra_state_attributes["last_update_success"] = False
 
         # After 3 consecutive missed updates, mark as unavailable
-        # unless we're still getting MQTT updates
-        if self._missed_updates >= 3 and not self._state_via_mqtt:
+        if self._missed_updates >= 3:
             _LOGGER.warning(
                 "Entity %s marked unavailable after %d missed updates",
                 self._attr_name,
@@ -412,28 +398,19 @@ class PanasonicMirAIeClimate(ClimateEntity):
             return
 
         try:
-            # Store the most recent MQTT state update
-            if topic.endswith("/state"):
-                self._state_via_mqtt = payload
-
-                # Check if this is a response to a recently sent command
-                if time.time() - self._command_time < 5:  # Within 5 seconds of command
-                    self._mqtt_state_received_after_command = True
-                    _LOGGER.debug("Received MQTT update after command")
-
-            online_status = payload.get("onlineStatus")
-            self._attr_available = online_status == "true"
-
             rmtmp = payload.get("rmtmp")
-            self._attr_current_temperature = float(rmtmp) if rmtmp is not None else None
+            current_temperature = float(rmtmp) if rmtmp is not None else None
             actmp = payload.get("actmp")
-            self._attr_target_temperature = float(actmp) if actmp is not None else None
+            target_temperature = float(actmp) if actmp is not None else None
+
+            self._attr_current_temperature = current_temperature
+            self._attr_target_temperature = target_temperature
 
             is_power_on = payload.get("ps") == "on"
             hvac_mode_str = payload.get("acmd")
 
             self._attr_hvac_mode = (
-                self.HVAC_MODE_MAP.get(hvac_mode_str, HVACMode.OFF)
+                HVAC_MODE_MAP.get(hvac_mode_str, HVACMode.OFF)
                 if is_power_on
                 else HVACMode.OFF
             )
@@ -457,6 +434,8 @@ class PanasonicMirAIeClimate(ClimateEntity):
                 payload, nanoe_active, powerful_active, economy_active, clean_active
             )
 
+            self._last_update_success = True
+
             # Update entity attributes
             self._attr_extra_state_attributes.update(
                 {
@@ -468,19 +447,30 @@ class PanasonicMirAIeClimate(ClimateEntity):
                     "filter_cleaning_required": payload.get("filterCleaningRequired"),
                     "errors": payload.get("errors"),
                     "warnings": payload.get("warnings"),
-                    "last_update_success": self._last_update_success,
+                    "last_update_success": True,
                     # "converti7_mode" is already updated in _update_preset_mode
                 }
             )
 
-            # Mark entity as available as we received a valid state update
-            self._attr_available = True
+            # A valid payload is fresh, but an explicit offline status is authoritative.
+            online_status = payload.get("onlineStatus")
+            self._attr_available = online_status is None or online_status in (
+                True,
+                "true",
+            )
             self._missed_updates = 0
+
+            if topic.endswith("/state"):
+                self._mqtt_state_received_after_command = True
+                _LOGGER.debug("Received MQTT update after command")
 
             # Update the state in Home Assistant
             self.async_write_ha_state()
         except Exception as e:
+            self._last_update_success = False
+            self._attr_extra_state_attributes["last_update_success"] = False
             _LOGGER.error("Error handling state update for %s: %s", self._attr_name, e)
+            raise
 
     async def _send_command(self, command_fn, *args, **kwargs):
         """Send a command with retry logic and timeout.
@@ -510,9 +500,16 @@ class PanasonicMirAIeClimate(ClimateEntity):
                     await asyncio.sleep(1)
 
                 try:
+                    self._mqtt_state_received_after_command = False
+
                     # Set a timeout for the command
                     async with asyncio.timeout(API_COMMAND_TIMEOUT):
-                        await command_fn(*args, **kwargs)
+                        result = await command_fn(*args, **kwargs)
+
+                    if result is False:
+                        _LOGGER.warning("Command rejected for %s", self._attr_name)
+                        continue
+
                     success = True
 
                     # Wait a short time for state update to arrive via MQTT
@@ -524,7 +521,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
                         _LOGGER.debug(
                             "No MQTT update received, requesting state update"
                         )
-                        self.hass.async_create_task(self.async_update())
+                        await self.async_update()
 
                     break
                 except TimeoutError:
@@ -536,7 +533,6 @@ class PanasonicMirAIeClimate(ClimateEntity):
 
         return success
 
-    @_track_command
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature.
 
@@ -553,10 +549,6 @@ class PanasonicMirAIeClimate(ClimateEntity):
                 "Setting temperature for %s to %s", self._attr_name, temperature
             )
 
-            # Update state optimistically
-            self._attr_target_temperature = float(temperature)
-            self.async_write_ha_state()
-
             # Send command with retry logic
             success = await self._send_command(
                 self._api.set_temperature, self._device_topic, temperature
@@ -566,10 +558,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
                 _LOGGER.warning(
                     "Failed to set temperature for %s after retries", self._attr_name
                 )
-                # Schedule an update to get the correct state
-                self.async_schedule_update_ha_state(True)
 
-    @_track_command
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new target hvac mode.
 
@@ -581,10 +570,6 @@ class PanasonicMirAIeClimate(ClimateEntity):
 
         """
         _LOGGER.debug("Setting HVAC mode for %s to %s", self._attr_name, hvac_mode)
-
-        # Update state optimistically
-        self._attr_hvac_mode = hvac_mode
-        self.async_write_ha_state()
 
         success = False
         if hvac_mode == HVACMode.OFF:
@@ -611,10 +596,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
             _LOGGER.warning(
                 "Failed to set HVAC mode for %s after retries", self._attr_name
             )
-            # Schedule an update to get the correct state
-            self.async_schedule_update_ha_state(True)
 
-    @_track_command
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set new target fan mode.
 
@@ -626,10 +608,6 @@ class PanasonicMirAIeClimate(ClimateEntity):
 
         """
         _LOGGER.debug("Setting fan mode for %s to %s", self._attr_name, fan_mode)
-
-        # Update state optimistically
-        self._attr_fan_mode = fan_mode
-        self.async_write_ha_state()
 
         miraie_fan_mode = next(
             (k for k, v in FAN_MODE_MAP.items() if v == fan_mode), None
@@ -644,10 +622,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
                 _LOGGER.warning(
                     "Failed to set fan mode for %s after retries", self._attr_name
                 )
-                # Schedule an update to get the correct state
-                self.async_schedule_update_ha_state(True)
 
-    @_track_command
     async def async_set_swing_mode(self, swing_mode: str) -> None:
         """Set new target swing operation.
 
@@ -660,10 +635,6 @@ class PanasonicMirAIeClimate(ClimateEntity):
         """
         _LOGGER.debug("Setting swing mode for %s to %s", self._attr_name, swing_mode)
 
-        # Update state optimistically
-        self._attr_swing_mode = swing_mode
-        self.async_write_ha_state()
-
         miraie_swing_mode = SWING_MODE_MAP.get(swing_mode)
         if miraie_swing_mode:
             success = await self._send_command(
@@ -674,10 +645,7 @@ class PanasonicMirAIeClimate(ClimateEntity):
                 _LOGGER.warning(
                     "Failed to set swing mode for %s after retries", self._attr_name
                 )
-                # Schedule an update to get the correct state
-                self.async_schedule_update_ha_state(True)
 
-    @_track_command
     async def _handle_converti7_preset(self, preset_mode: str) -> bool:
         """Handle Converti7 preset mode setting.
 
@@ -693,8 +661,6 @@ class PanasonicMirAIeClimate(ClimateEntity):
                 "Converti7 can only be used in Cool mode. Current mode: %s",
                 self._attr_hvac_mode,
             )
-            # Revert optimistic update
-            self.async_schedule_update_ha_state(True)
             return False
 
         numeric_value_str = self.CONVERTI7_TO_PAYLOAD_MAP[preset_mode]
@@ -729,7 +695,6 @@ class PanasonicMirAIeClimate(ClimateEntity):
             _LOGGER.warning(
                 "Failed to set Converti7 mode for %s after retries", self._attr_name
             )
-            self.async_schedule_update_ha_state(True)
 
         return success
 
@@ -818,10 +783,6 @@ class PanasonicMirAIeClimate(ClimateEntity):
             PRESET_MODES.get(preset_mode, {}).get("name", preset_mode),
         )
 
-        # Update state optimistically
-        self._attr_preset_mode = preset_mode
-        self.async_write_ha_state()
-
         success = True  # Initialize success to True
 
         if preset_mode in self.CONVERTI7_TO_PAYLOAD_MAP:
@@ -837,9 +798,10 @@ class PanasonicMirAIeClimate(ClimateEntity):
                 self._attr_name,
             )
             # Turn off Converti7 first
-            await self._send_command(
+            if not await self._send_command(
                 self._api.set_converti7_mode, self._device_topic, "0"
-            )
+            ):
+                success = False
 
         # If not a Converti7 mode, ensure Converti7 is turned off (set to "0")
         # This will also handle other non-Converti7 presets
@@ -869,8 +831,6 @@ class PanasonicMirAIeClimate(ClimateEntity):
                 "Failed to set preset mode for %s after retries (some operations might have failed)",
                 self._attr_name,
             )
-            # Schedule an update to get the correct state
-            self.async_schedule_update_ha_state(True)
 
     @property
     def hvac_mode(self) -> HVACMode:

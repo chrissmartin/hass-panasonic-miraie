@@ -13,7 +13,6 @@ from datetime import timedelta
 import json
 import logging
 import ssl
-import time
 from typing import Any
 import uuid
 
@@ -53,7 +52,6 @@ class MQTTHandler:
         self._mqtt_task = None
         self._retry_count = 0
         self._max_retry_count = 10
-        self._last_message_time = 0
         self._connection_monitor = None
         self._pending_reconnect = False
         self._client_id = f"ha-panasonic-miraie-{uuid.uuid4().hex}"
@@ -141,7 +139,6 @@ class MQTTHandler:
     async def _setup_after_connection(self):
         """Set up tasks after successful MQTT connection."""
         self.connected.set()
-        self._last_message_time = time.time()
         self._retry_count = 0
         _LOGGER.info("Connected to Panasonic MirAIe MQTT broker")
 
@@ -173,45 +170,11 @@ class MQTTHandler:
         if not self.connected.is_set() and not self._pending_reconnect:
             _LOGGER.info("Connection monitor detected disconnected state, reconnecting")
             await self.connect_with_retry(self.username, self.password)
-        elif self.connected.is_set():
-            # Check if connection is stale (no message received for a while)
-            connection_age = time.time() - self._last_message_time
-            stale_threshold = MQTT_KEEPALIVE * 1.5
-
-            if connection_age > stale_threshold:
-                _LOGGER.warning(
-                    "MQTT connection may be stale (no activity for %d seconds), reconnecting",
-                    connection_age,
-                )
-                await self._handle_graceful_reconnect()
-
-    async def _handle_graceful_reconnect(self) -> None:
-        """Handle a reconnection with proper cleanup."""
-        # First mark as disconnected to prevent other operations
-        self.connected.clear()
-
-        # Try to gracefully disconnect existing client
-        if self.client:
-            with contextlib.suppress(Exception):
-                await self.client.__aexit__(None, None, None)
-            self.client = None
-
-        # Cancel existing message loop
-        if self._mqtt_task:
-            self._mqtt_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._mqtt_task
-            self._mqtt_task = None
-
-        # Now reconnect
-        await self.connect_with_retry(self.username, self.password)
 
     async def _message_loop(self):
         """Handle the message loop for incoming MQTT messages."""
         try:
             async for message in self.client.messages:
-                # Update last message time whenever we receive a message
-                self._last_message_time = time.time()
                 await self._handle_message(message)
         except MqttError as error:
             if self.connected.is_set():  # Only log if we thought we were connected
@@ -401,9 +364,6 @@ class MQTTHandler:
                 json_payload = json.dumps(payload)
                 await self.client.publish(topic, json_payload)
             _LOGGER.debug("Successfully published to %s", topic)
-            self._last_message_time = (
-                time.time()
-            )  # Update last message time after successful publish
             return True
         except TimeoutError:
             _LOGGER.error("Timeout publishing to %s", topic)
